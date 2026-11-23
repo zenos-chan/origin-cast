@@ -1,8 +1,10 @@
 import os
+import re
 import platform
 import functools
 import argparse
 from pathlib import Path
+from typing import List, Dict, Any
 import urllib.parse
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash, send_file
 import flask
@@ -98,6 +100,107 @@ def admin_required(f):
 
 
 # ---------------------------------------------------------------------------
+# Subtitle Discovery & Conversion Helpers
+# ---------------------------------------------------------------------------
+SUBTITLE_EXTENSIONS = {".vtt", ".srt", ".sub", ".ass"}
+
+
+def srt_to_webvtt(srt_text: str) -> str:
+    """Converts SubRip (.srt) subtitle text to standard WebVTT (.vtt) format."""
+    text = srt_text.lstrip("\ufeff")
+    # Replace comma milliseconds separator with period: 00:01:23,456 --> 00:01:25.456
+    pattern = re.compile(r"(\d{2}:\d{2}:\d{2}),(\d{3})")
+    vtt = pattern.sub(r"\1.\2", text)
+    return "WEBVTT\n\n" + vtt.strip() + "\n"
+
+
+def find_subtitles_for_file(filepath: str) -> List[Dict[str, Any]]:
+    """
+    Finds subtitle files associated with a given video filepath.
+    Looks in the same directory and common subdirectories ('subs', 'subtitles').
+    """
+    if not filepath:
+        return []
+    target = Path(filepath)
+    if not target.is_absolute():
+        target = (Path(".").resolve() / filepath).resolve()
+    else:
+        target = target.resolve()
+
+    if not target.is_file():
+        for base in [Path(media_engine.movies_dir).resolve(), Path(media_engine.tv_dir).resolve()]:
+            c = (base / filepath).resolve()
+            if c.is_file():
+                target = c
+                break
+
+    if not target.parent.exists():
+        return []
+
+    parent_dir = target.parent
+    candidate_dirs = [parent_dir]
+    for subfolder in ["subs", "subtitles", "Subs", "Subtitles"]:
+        sub_d = parent_dir / subfolder
+        if sub_d.is_dir():
+            candidate_dirs.append(sub_d)
+
+    subtitles = []
+    seen_paths = set()
+    video_stem = target.stem.lower()
+
+    lang_map = {
+        "en": "English", "eng": "English", "english": "English",
+        "es": "Spanish", "spa": "Spanish", "spanish": "Spanish",
+        "fr": "French", "fre": "French", "fra": "French",
+        "de": "German", "ger": "German", "deu": "German",
+        "hi": "Hindi", "hin": "Hindi", "hindi": "Hindi",
+        "ja": "Japanese", "jpn": "Japanese", "japanese": "Japanese",
+        "zh": "Chinese", "chi": "Chinese", "chinese": "Chinese",
+        "it": "Italian", "ita": "Italian", "italian": "Italian",
+        "pt": "Portuguese", "por": "Portuguese",
+        "ru": "Russian", "rus": "Russian",
+        "ar": "Arabic", "ara": "Arabic",
+        "ko": "Korean", "kor": "Korean"
+    }
+
+    for d in candidate_dirs:
+        for f in sorted(d.iterdir()):
+            if f.is_file() and f.suffix.lower() in SUBTITLE_EXTENSIONS:
+                if str(f) in seen_paths:
+                    continue
+                seen_paths.add(str(f))
+
+                try:
+                    rel_path = str(f.relative_to(Path(".").resolve()))
+                except ValueError:
+                    rel_path = str(f)
+
+                f_name = f.stem
+                matched_lang = None
+                tokens = re.split(r"[\._\-\s]", f_name.lower())
+                for tok in tokens:
+                    if tok in lang_map:
+                        matched_lang = lang_map[tok]
+                        break
+
+                if matched_lang:
+                    clean_lang = matched_lang
+                elif f_name.lower() == video_stem:
+                    clean_lang = "Default"
+                else:
+                    clean_lang = f.stem
+
+                subtitles.append({
+                    "name": clean_lang,
+                    "url": f"/subtitles/{urllib.parse.quote(rel_path)}",
+                    "file_path": rel_path,
+                    "type": "vtt" if f.suffix.lower() == ".vtt" else "srt"
+                })
+
+    return subtitles
+
+
+# ---------------------------------------------------------------------------
 # Public Front-end Routes
 # ---------------------------------------------------------------------------
 @app.route("/")
@@ -124,6 +227,8 @@ def tv():
 @app.route("/movie/<path:movie_id>")
 def movie_detail(movie_id):
     """Movie player and detail page for viewing local video files."""
+    if not media_engine.movies:
+        media_engine.scan_movies()
     decoded_id = urllib.parse.unquote(movie_id).strip().lower()
     selected_movie = None
     for m in media_engine.movies:
@@ -137,13 +242,21 @@ def movie_detail(movie_id):
     if not selected_movie:
         return redirect(url_for("home"))
 
+    subtitles = find_subtitles_for_file(selected_movie.get("file_path", ""))
     other_movies = [m for m in media_engine.movies if m.get("id") != selected_movie.get("id")][:6]
-    return render_template("movie_detail.html", movie=selected_movie, other_movies=other_movies)
+    return render_template(
+        "movie_detail.html",
+        movie=selected_movie,
+        subtitles=subtitles,
+        other_movies=other_movies
+    )
 
 
 @app.route("/tv/<path:tv_id>")
 def tv_detail(tv_id):
     """TV series player and interactive episode browser page."""
+    if not media_engine.tv_shows:
+        media_engine.scan_tv()
     decoded_id = urllib.parse.unquote(tv_id).strip().lower()
     selected_show = None
     for t in media_engine.tv_shows:
@@ -171,7 +284,14 @@ def tv_detail(tv_id):
             if not current_ep:
                 current_ep = season_eps[0]
 
-    return render_template("tv_detail.html", show=selected_show, seasons=seasons, current_episode=current_ep)
+    subtitles = find_subtitles_for_file(current_ep.get("file_path", "")) if current_ep else []
+    return render_template(
+        "tv_detail.html",
+        show=selected_show,
+        seasons=seasons,
+        current_episode=current_ep,
+        subtitles=subtitles
+    )
 
 
 @app.route("/stream/<path:filepath>")
@@ -208,6 +328,51 @@ def stream_video(filepath):
     }
     mimetype = mimetypes.get(ext, "video/mp4")
     return send_file(target, mimetype=mimetype, conditional=True, as_attachment=False)
+
+
+@app.route("/subtitles/<path:filepath>")
+def stream_subtitles(filepath):
+    """
+    Streams local subtitle files as standard WebVTT.
+    Converts .srt files on-the-fly to ensure native browser playback.
+    """
+    decoded_path = urllib.parse.unquote(filepath)
+    target = Path(decoded_path)
+    if not target.is_absolute():
+        target = (Path(".").resolve() / decoded_path).resolve()
+    else:
+        target = target.resolve()
+
+    if not target.is_file():
+        for base in [Path(media_engine.movies_dir).resolve(), Path(media_engine.tv_dir).resolve()]:
+            c = (base / decoded_path).resolve()
+            if c.is_file():
+                target = c
+                break
+
+    if not target.is_file():
+        return jsonify({"status": "error", "message": f"Subtitle '{filepath}' not found."}), 404
+
+    try:
+        content = target.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        content = target.read_text(encoding="latin-1", errors="replace")
+
+    ext = target.suffix.lower()
+    if ext != ".vtt":
+        content = srt_to_webvtt(content)
+
+    return flask.Response(content, mimetype="text/vtt; charset=utf-8")
+
+
+@app.route("/api/media/subtitles")
+def get_media_subtitles():
+    """Returns JSON list of available subtitle tracks for a media file."""
+    filepath = request.args.get("filepath", "")
+    if not filepath:
+        return jsonify({"subtitles": []})
+    subs = find_subtitles_for_file(filepath)
+    return jsonify({"subtitles": subs})
 
 
 @app.route("/api/scan")

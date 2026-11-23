@@ -2,6 +2,20 @@
 
 {% block title %}{{ movie.title }} ({{ movie.year }}) - OriginCast{% endblock %}
 
+{% block styles %}
+<style>
+.art-video-player .art-mask {
+    backdrop-filter: blur(4px);
+}
+.art-video-player .art-bottom {
+    background: linear-gradient(to top, rgba(2, 6, 23, 0.95), rgba(2, 6, 23, 0.6), transparent) !important;
+}
+.art-video-player {
+    border-radius: 1.5rem !important;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="space-y-8 max-w-7xl mx-auto">
 
@@ -21,39 +35,77 @@
     </div>
 
     <!-- Cinema Video Player Stage -->
-    <div class="relative w-full rounded-3xl overflow-hidden bg-slate-950 border border-slate-800 shadow-2xl shadow-indigo-950/20">
-        <div class="relative aspect-video w-full bg-black">
-            <video id="video-player" 
-                   controls 
-                   playsinline 
-                   preload="metadata"
-                   poster="{{ movie.backdrop or movie.poster or movie.img }}"
-                   class="w-full h-full object-contain">
-                <source src="{{ url_for('stream_video', filepath=movie.file_path) }}" type="video/mp4">
-                Your browser does not support HTML5 video.
-            </video>
-        </div>
+    <div class="relative w-full rounded-3xl overflow-hidden bg-slate-950 border border-slate-800 shadow-2xl shadow-indigo-950/30">
+        <!-- Player Container -->
+        <div id="artplayer-container" class="relative aspect-video w-full bg-black"></div>
 
-        <!-- Player Underbar Info -->
-        <div class="p-4 sm:p-6 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <!-- Cinema Audio & Subtitle Control Bar -->
+        <div class="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div class="flex items-center space-x-4">
                 <div class="p-3 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
-                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
+                    <svg class="w-6 h-6 fill-current" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
                 </div>
                 <div>
                     <h1 class="text-xl sm:text-2xl font-black text-white tracking-tight">{{ movie.title }}</h1>
                     <p class="text-xs text-slate-400 mt-0.5">
                         {{ movie.year }} • {{ movie.duration or '2h 00m' }} • 
-                        <span class="text-amber-400 font-bold">★ {{ movie.rating or '8.5' }}</span>
+                        <span class="text-amber-400 font-bold">★ {{ movie.rating or '8.5' }}</span> • 
+                        <span class="text-indigo-400 font-medium">{{ subtitles|length }} Subtitle Track(s) Detected</span>
                     </p>
                 </div>
             </div>
 
-            <!-- Quick Player Actions -->
-            <div class="flex items-center space-x-2.5">
-                <button onclick="toggleTheaterMode()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors flex items-center space-x-1.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
-                    <span>Fullscreen</span>
+            <!-- Quick Access Audio & Subtitle Actions -->
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- Subtitles Picker -->
+                <div class="relative inline-block text-left" id="quick-sub-dropdown">
+                    <button type="button" onclick="toggleSubMenu()" class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-colors">
+                        <span class="px-1 py-0.5 rounded bg-indigo-600/80 text-[10px] font-mono text-white">CC</span>
+                        <span id="quick-sub-label">Subtitles ({{ subtitles|length }})</span>
+                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div id="sub-menu-dropdown" class="hidden absolute right-0 mt-2 w-60 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1 z-30 text-xs divide-y divide-slate-800">
+                        <div class="py-1">
+                            <button onclick="selectSubtitle(null, 'Off')" class="w-full text-left px-4 py-2 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center justify-between">
+                                <span>Disabled (Off)</span>
+                            </button>
+                            {% for sub in subtitles %}
+                            <button onclick="selectSubtitle('{{ sub.url }}', '{{ sub.name }}')" class="w-full text-left px-4 py-2 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center justify-between">
+                                <span class="truncate">{{ sub.name }}</span>
+                                <span class="text-[10px] uppercase font-mono text-indigo-400 ml-2">{{ sub.type }}</span>
+                            </button>
+                            {% endfor %}
+                        </div>
+                        <div class="p-2 space-y-1.5">
+                            <label class="w-full flex items-center justify-center space-x-1.5 py-1.5 px-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[11px] cursor-pointer transition-colors shadow-sm">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                <span>Load .srt or .vtt file</span>
+                                <input type="file" accept=".srt,.vtt,.sub,.ass" class="hidden" onchange="handleSubtitleUpload(event)">
+                            </label>
+                            <p class="text-[10px] text-slate-500 text-center">Drag & drop subtitles anytime</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Audio Boost Selector -->
+                <div class="flex items-center space-x-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/80 text-xs">
+                    <span class="text-[11px] text-slate-400 px-2 font-medium flex items-center">
+                        <svg class="w-3.5 h-3.5 mr-1 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                        Audio
+                    </span>
+                    <button onclick="setAudioBoost(1.0, this)" class="boost-btn px-2 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 text-white transition-colors">100%</button>
+                    <button onclick="setAudioBoost(1.5, this)" class="boost-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-colors">150%</button>
+                    <button onclick="setAudioBoost(2.0, this)" class="boost-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-colors">200%</button>
+                </div>
+
+                <!-- Night Mode Toggle (Dialogue Clarifier) -->
+                <button id="night-mode-btn" onclick="toggleNightMode()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors flex items-center space-x-1.5" title="Speech Clarity & Dynamic Compression">
+                    <span>🌙 Speech Clarity</span>
+                </button>
+
+                <!-- Shortcuts Help -->
+                <button onclick="window.OriginCastPlayer.showShortcutsModal()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition-colors text-xs font-mono" title="Keyboard Shortcuts (?)">
+                    ?
                 </button>
             </div>
         </div>
@@ -151,16 +203,90 @@
     </div>
 
 </div>
+{% endblock %}
 
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/artplayer.js') }}"></script>
 <script>
-    function toggleTheaterMode() {
-        const video = document.getElementById('video-player');
-        if (!document.fullscreenElement) {
-            if (video.requestFullscreen) video.requestFullscreen();
-            else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
-        } else {
-            if (document.exitFullscreen) document.exitFullscreen();
+    if (typeof Artplayer === 'undefined') {
+        document.write('<script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"><\/script>');
+    }
+</script>
+<script src="{{ url_for('static', filename='js/player.js') }}"></script>
+<script>
+    const movieSubtitles = {{ subtitles|tojson|safe }};
+    const player = window.OriginCastPlayer.init({
+        container: '#artplayer-container',
+        url: "{{ url_for('stream_video', filepath=movie.file_path) }}",
+        poster: "{{ movie.backdrop or movie.poster or movie.img }}",
+        title: {{ movie.title|tojson|safe }} + " ({{ movie.year }})",
+        subtitleText: "{{ movie.genres|join(' • ') if movie.genres is iterable and movie.genres is not string else movie.genres }}",
+        subtitles: movieSubtitles
+    });
+
+    function toggleSubMenu() {
+        const el = document.getElementById('sub-menu-dropdown');
+        if (el) el.classList.toggle('hidden');
+    }
+
+    window.addEventListener('click', (e) => {
+        const dd = document.getElementById('quick-sub-dropdown');
+        const menu = document.getElementById('sub-menu-dropdown');
+        if (dd && menu && !dd.contains(e.target)) {
+            menu.classList.add('hidden');
         }
+    });
+
+    function selectSubtitle(url, name) {
+        if (!player) return;
+        if (!url) {
+            player.subtitle.show = false;
+            document.getElementById('quick-sub-label').textContent = 'Subtitles (Off)';
+            player.notice.show = 'Subtitles: Off';
+        } else {
+            player.subtitle.switch(url, { name: name, type: 'vtt' });
+            player.subtitle.show = true;
+            document.getElementById('quick-sub-label').textContent = `Subtitles (${name})`;
+            player.notice.show = `Loaded Subtitle: ${name}`;
+        }
+        toggleSubMenu();
+    }
+
+    function handleSubtitleUpload(e) {
+        const file = e.target.files[0];
+        if (!file || !player) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const blobUrl = window.OriginCastSubtitleManager.createVttBlobUrl(evt.target.result);
+            player.subtitle.switch(blobUrl, { name: file.name, type: 'vtt' });
+            player.subtitle.show = true;
+            document.getElementById('quick-sub-label').textContent = `Subtitles (${file.name})`;
+            player.notice.show = `Loaded Subtitle: ${file.name}`;
+            toggleSubMenu();
+        };
+        reader.readAsText(file);
+    }
+
+    function setAudioBoost(factor, btn) {
+        window.OriginCastAudioEngine.setBoost(factor);
+        document.querySelectorAll('.boost-btn').forEach(b => {
+            b.className = 'boost-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-colors';
+        });
+        if (btn) btn.className = 'boost-btn px-2 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 text-white transition-colors';
+        if (player) player.notice.show = `Audio Boost: ${Math.round(factor * 100)}%`;
+    }
+
+    function toggleNightMode() {
+        const isNight = window.OriginCastAudioEngine.toggleNightMode();
+        const btn = document.getElementById('night-mode-btn');
+        if (btn) {
+            if (isNight) {
+                btn.className = 'px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition-colors flex items-center space-x-1.5';
+            } else {
+                btn.className = 'px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors flex items-center space-x-1.5';
+            }
+        }
+        if (player) player.notice.show = isNight ? 'Speech Clarity / Night Mode: ON' : 'Night Mode: OFF';
     }
 </script>
 {% endblock %}

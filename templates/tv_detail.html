@@ -2,6 +2,20 @@
 
 {% block title %}{{ show.title }} - OriginCast{% endblock %}
 
+{% block styles %}
+<style>
+.art-video-player .art-mask {
+    backdrop-filter: blur(4px);
+}
+.art-video-player .art-bottom {
+    background: linear-gradient(to top, rgba(2, 6, 23, 0.95), rgba(2, 6, 23, 0.6), transparent) !important;
+}
+.art-video-player {
+    border-radius: 1.5rem !important;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="space-y-8 max-w-7xl mx-auto">
 
@@ -21,26 +35,15 @@
     </div>
 
     <!-- Cinema Video Player Stage -->
-    <div class="relative w-full rounded-3xl overflow-hidden bg-slate-950 border border-slate-800 shadow-2xl shadow-indigo-950/20">
-        <div class="relative aspect-video w-full bg-black">
-            <video id="video-player" 
-                   controls 
-                   playsinline 
-                   preload="metadata"
-                   poster="{{ show.backdrop or show.poster or show.img }}"
-                   class="w-full h-full object-contain">
-                {% if current_episode and current_episode.file_path %}
-                <source id="video-source" src="{{ url_for('stream_video', filepath=current_episode.file_path) }}" type="video/mp4">
-                {% endif %}
-                Your browser does not support HTML5 video.
-            </video>
-        </div>
+    <div class="relative w-full rounded-3xl overflow-hidden bg-slate-950 border border-slate-800 shadow-2xl shadow-indigo-950/30">
+        <!-- Player Container -->
+        <div id="artplayer-container" class="relative aspect-video w-full bg-black"></div>
 
-        <!-- Player Underbar Info & Now Playing Indicator -->
-        <div class="p-4 sm:p-6 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <!-- Cinema Underbar Info & Audio / Subtitle Actions -->
+        <div class="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div class="flex items-center space-x-4">
                 <div class="p-3 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
-                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
+                    <svg class="w-6 h-6 fill-current" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
                 </div>
                 <div>
                     <div class="flex items-center space-x-2">
@@ -50,17 +53,68 @@
                         </h1>
                     </div>
                     <p class="text-xs text-slate-400 mt-1">
-                        {{ show.title }} • <span id="now-playing-sub">Season {{ current_episode.season|default('1') }} Episode {{ current_episode.episode|default('1') }}</span> • 
+                        {{ show.title }} • <span id="now-playing-sub" class="text-indigo-300 font-medium">Season {{ current_episode.season|default('1') }} Episode {{ current_episode.episode|default('1') }}</span> • 
                         <span class="text-amber-400 font-bold">★ {{ show.rating or '8.5' }}</span>
                     </p>
                 </div>
             </div>
 
-            <!-- Fullscreen Button -->
-            <div class="flex items-center space-x-2.5">
-                <button onclick="toggleTheaterMode()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors flex items-center space-x-1.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
-                    <span>Fullscreen</span>
+            <!-- Quick Controls: Subtitles & Audio Boost -->
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- Subtitles Picker -->
+                <div class="relative inline-block text-left" id="quick-sub-dropdown">
+                    <button type="button" onclick="toggleSubMenu()" class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-colors">
+                        <span class="px-1 py-0.5 rounded bg-indigo-600/80 text-[10px] font-mono text-white">CC</span>
+                        <span id="quick-sub-label">Subtitles ({{ subtitles|length }})</span>
+                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div id="sub-menu-dropdown" class="hidden absolute right-0 mt-2 w-60 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1 z-30 text-xs divide-y divide-slate-800">
+                        <div class="py-1" id="sub-tracks-list">
+                            <button onclick="selectSubtitle(null, 'Off')" class="w-full text-left px-4 py-2 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center justify-between">
+                                <span>Disabled (Off)</span>
+                            </button>
+                            {% for sub in subtitles %}
+                            <button onclick="selectSubtitle('{{ sub.url }}', '{{ sub.name }}')" class="w-full text-left px-4 py-2 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center justify-between">
+                                <span class="truncate">{{ sub.name }}</span>
+                                <span class="text-[10px] uppercase font-mono text-indigo-400 ml-2">{{ sub.type }}</span>
+                            </button>
+                            {% endfor %}
+                        </div>
+                        <div class="p-2 space-y-1.5">
+                            <label class="w-full flex items-center justify-center space-x-1.5 py-1.5 px-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[11px] cursor-pointer transition-colors shadow-sm">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                <span>Load .srt or .vtt file</span>
+                                <input type="file" accept=".srt,.vtt,.sub,.ass" class="hidden" onchange="handleSubtitleUpload(event)">
+                            </label>
+                            <p class="text-[10px] text-slate-500 text-center">Drag & drop subtitles anytime</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Audio Boost Selector -->
+                <div class="flex items-center space-x-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/80 text-xs">
+                    <span class="text-[11px] text-slate-400 px-2 font-medium flex items-center">
+                        <svg class="w-3.5 h-3.5 mr-1 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                        Audio
+                    </span>
+                    <button onclick="setAudioBoost(1.0, this)" class="boost-btn px-2 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 text-white transition-colors">100%</button>
+                    <button onclick="setAudioBoost(1.5, this)" class="boost-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-colors">150%</button>
+                    <button onclick="setAudioBoost(2.0, this)" class="boost-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-colors">200%</button>
+                </div>
+
+                <!-- Night Mode (Speech Clarity) -->
+                <button id="night-mode-btn" onclick="toggleNightMode()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors flex items-center space-x-1.5" title="Speech Clarity & Dynamic Compression">
+                    <span>🌙 Speech Clarity</span>
+                </button>
+
+                <!-- Next Episode Action -->
+                <button onclick="playNextEpisode()" class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition-colors flex items-center space-x-1.5" title="Play Next Episode (N)">
+                    <span>Next Ep &rarr;</span>
+                </button>
+
+                <!-- Shortcuts Help -->
+                <button onclick="window.OriginCastPlayer.showShortcutsModal()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition-colors text-xs font-mono" title="Keyboard Shortcuts (?)">
+                    ?
                 </button>
             </div>
         </div>
@@ -189,16 +243,186 @@
     </div>
 
 </div>
+{% endblock %}
 
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/artplayer.js') }}"></script>
 <script>
-    function toggleTheaterMode() {
-        const video = document.getElementById('video-player');
-        if (!document.fullscreenElement) {
-            if (video.requestFullscreen) video.requestFullscreen();
-            else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+    if (typeof Artplayer === 'undefined') {
+        document.write('<script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"><\/script>');
+    }
+</script>
+<script src="{{ url_for('static', filename='js/player.js') }}"></script>
+<script>
+    // Flattened episode list for seamless Next Episode progression
+    const allEpisodes = [
+        {% for s_num, ep_list in seasons.items() %}
+            {% for ep in ep_list %}
+                {
+                    season: {{ ep.season }},
+                    episode: {{ ep.episode }},
+                    title: {{ ep.title|tojson|safe }},
+                    file_path: {{ ep.file_path|tojson|safe }}
+                },
+            {% endfor %}
+        {% endfor %}
+    ];
+
+    let currentEpIdx = 0;
+    {% if current_episode %}
+        currentEpIdx = allEpisodes.findIndex(e => e.file_path === {{ current_episode.file_path|tojson|safe }});
+        if (currentEpIdx === -1) currentEpIdx = 0;
+    {% endif %}
+
+    const initialSubtitles = {{ subtitles|tojson|safe }};
+
+    const player = window.OriginCastPlayer.init({
+        container: '#artplayer-container',
+        url: "{% if current_episode %}{{ url_for('stream_video', filepath=current_episode.file_path) }}{% else %}#{% endif %}",
+        poster: "{{ show.backdrop or show.poster or show.img }}",
+        title: {{ show.title|tojson|safe }} + " - " + (allEpisodes[currentEpIdx] ? allEpisodes[currentEpIdx].title : "Episode 1"),
+        subtitleText: "Season " + (allEpisodes[currentEpIdx] ? allEpisodes[currentEpIdx].season : "1") + " Episode " + (allEpisodes[currentEpIdx] ? allEpisodes[currentEpIdx].episode : "1"),
+        subtitles: initialSubtitles,
+        hasNextEpisode: allEpisodes.length > 1,
+        onNextEpisode: playNextEpisode
+    });
+
+    function playNextEpisode() {
+        if (currentEpIdx < allEpisodes.length - 1) {
+            const nextEp = allEpisodes[currentEpIdx + 1];
+            playEpisode(nextEp.file_path, nextEp.title, nextEp.season, nextEp.episode);
         } else {
-            if (document.exitFullscreen) document.exitFullscreen();
+            if (player) player.notice.show = "You've reached the final episode of this series.";
         }
+    }
+
+    function playEpisode(filePath, title, seasonNum, epNum) {
+        if (!player) return;
+        currentEpIdx = allEpisodes.findIndex(e => e.file_path === filePath);
+
+        const streamUrl = `/stream/${encodeURIComponent(filePath)}`;
+        player.switchUrl(streamUrl).then(() => {
+            player.play();
+        });
+
+        document.getElementById('now-playing-title').textContent = title;
+        document.getElementById('now-playing-sub').textContent = `Season ${seasonNum} Episode ${epNum}`;
+
+        // Update active highlight card
+        document.querySelectorAll('.ep-card').forEach(card => {
+            card.classList.remove('border-indigo-500', 'bg-indigo-950/20');
+        });
+        const activeCard = document.getElementById(`ep-card-${seasonNum}-${epNum}`);
+        if (activeCard) {
+            activeCard.classList.add('border-indigo-500', 'bg-indigo-950/20');
+        }
+
+        // Fetch dynamic subtitles for this episode
+        fetch(`/api/media/subtitles?filepath=${encodeURIComponent(filePath)}`)
+            .then(res => res.json())
+            .then(data => {
+                const subs = data.subtitles || [];
+                updateSubtitlesDropdown(subs);
+                if (subs.length > 0) {
+                    player.subtitle.switch(subs[0].url, { name: subs[0].name, type: 'vtt' });
+                    player.subtitle.show = true;
+                    document.getElementById('quick-sub-label').textContent = `Subtitles (${subs[0].name})`;
+                    player.notice.show = `Loaded Subtitle: ${subs[0].name}`;
+                } else {
+                    player.subtitle.show = false;
+                    document.getElementById('quick-sub-label').textContent = 'Subtitles (0)';
+                }
+            })
+            .catch(err => console.warn('Could not fetch episode subtitles:', err));
+
+        // Scroll to player
+        const playerEl = document.getElementById('artplayer-container');
+        if (playerEl) playerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function updateSubtitlesDropdown(subs) {
+        const listContainer = document.getElementById('sub-tracks-list');
+        if (!listContainer) return;
+        let html = `
+            <button onclick="selectSubtitle(null, 'Off')" class="w-full text-left px-4 py-2 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center justify-between">
+                <span>Disabled (Off)</span>
+            </button>
+        `;
+        subs.forEach(s => {
+            html += `
+                <button onclick="selectSubtitle('${s.url}', '${s.name}')" class="w-full text-left px-4 py-2 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center justify-between">
+                    <span class="truncate">${s.name}</span>
+                    <span class="text-[10px] uppercase font-mono text-indigo-400 ml-2">${s.type}</span>
+                </button>
+            `;
+        });
+        listContainer.innerHTML = html;
+        document.getElementById('quick-sub-label').textContent = `Subtitles (${subs.length})`;
+    }
+
+    function toggleSubMenu() {
+        const el = document.getElementById('sub-menu-dropdown');
+        if (el) el.classList.toggle('hidden');
+    }
+
+    window.addEventListener('click', (e) => {
+        const dd = document.getElementById('quick-sub-dropdown');
+        const menu = document.getElementById('sub-menu-dropdown');
+        if (dd && menu && !dd.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+
+    function selectSubtitle(url, name) {
+        if (!player) return;
+        if (!url) {
+            player.subtitle.show = false;
+            document.getElementById('quick-sub-label').textContent = 'Subtitles (Off)';
+            player.notice.show = 'Subtitles: Off';
+        } else {
+            player.subtitle.switch(url, { name: name, type: 'vtt' });
+            player.subtitle.show = true;
+            document.getElementById('quick-sub-label').textContent = `Subtitles (${name})`;
+            player.notice.show = `Loaded Subtitle: ${name}`;
+        }
+        toggleSubMenu();
+    }
+
+    function handleSubtitleUpload(e) {
+        const file = e.target.files[0];
+        if (!file || !player) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const blobUrl = window.OriginCastSubtitleManager.createVttBlobUrl(evt.target.result);
+            player.subtitle.switch(blobUrl, { name: file.name, type: 'vtt' });
+            player.subtitle.show = true;
+            document.getElementById('quick-sub-label').textContent = `Subtitles (${file.name})`;
+            player.notice.show = `Loaded Subtitle: ${file.name}`;
+            toggleSubMenu();
+        };
+        reader.readAsText(file);
+    }
+
+    function setAudioBoost(factor, btn) {
+        window.OriginCastAudioEngine.setBoost(factor);
+        document.querySelectorAll('.boost-btn').forEach(b => {
+            b.className = 'boost-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-colors';
+        });
+        if (btn) btn.className = 'boost-btn px-2 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 text-white transition-colors';
+        if (player) player.notice.show = `Audio Boost: ${Math.round(factor * 100)}%`;
+    }
+
+    function toggleNightMode() {
+        const isNight = window.OriginCastAudioEngine.toggleNightMode();
+        const btn = document.getElementById('night-mode-btn');
+        if (btn) {
+            if (isNight) {
+                btn.className = 'px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition-colors flex items-center space-x-1.5';
+            } else {
+                btn.className = 'px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors flex items-center space-x-1.5';
+            }
+        }
+        if (player) player.notice.show = isNight ? 'Speech Clarity / Night Mode: ON' : 'Night Mode: OFF';
     }
 
     function switchSeason(seasonNum) {
@@ -213,29 +437,6 @@
         document.querySelectorAll('.season-panel').forEach(panel => panel.classList.add('hidden'));
         const activePanel = document.getElementById(`season-panel-${seasonNum}`);
         if (activePanel) activePanel.classList.remove('hidden');
-    }
-
-    function playEpisode(filePath, title, seasonNum, epNum) {
-        const video = document.getElementById('video-player');
-        const streamUrl = `/stream/${encodeURIComponent(filePath)}`;
-        
-        video.src = streamUrl;
-        video.load();
-        video.play().catch(err => console.log('Autoplay deferred:', err));
-
-        document.getElementById('now-playing-title').textContent = title;
-        document.getElementById('now-playing-sub').textContent = `Season ${seasonNum} Episode ${epNum}`;
-
-        document.querySelectorAll('.ep-card').forEach(card => {
-            card.classList.remove('border-indigo-500', 'bg-indigo-950/20');
-        });
-        const activeCard = document.getElementById(`ep-card-${seasonNum}-${epNum}`);
-        if (activeCard) {
-            activeCard.classList.add('border-indigo-500', 'bg-indigo-950/20');
-        }
-
-        // Scroll smoothly to player
-        video.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 </script>
 {% endblock %}
