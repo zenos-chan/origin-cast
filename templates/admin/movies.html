@@ -38,12 +38,19 @@
             
             <div>
                 <!-- Poster Image Container -->
-                <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-950">
+                <a href="/movie/{{ movie.id }}" class="block relative aspect-[2/3] w-full overflow-hidden bg-slate-950 group/poster">
                     <img src="{{ movie.poster or movie.img }}" alt="{{ movie.title }}" 
                          loading="lazy"
                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
                     <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-80"></div>
                     
+                    <!-- Play overlay badge on hover -->
+                    <div class="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div class="w-12 h-12 rounded-full bg-indigo-600/90 text-white flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform pl-0.5">
+                            <svg class="w-5 h-5 fill-current" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
+                        </div>
+                    </div>
+
                     <!-- Rating Badge -->
                     <div class="absolute top-3 right-3 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md border border-slate-700 text-amber-400 font-bold text-xs flex items-center space-x-1 shadow-lg">
                         <span>★</span>
@@ -56,12 +63,12 @@
                     </div>
 
                     <div class="absolute bottom-3 left-3 right-3">
-                        <h3 class="text-base font-extrabold text-white tracking-tight leading-snug drop-shadow-md">{{ movie.title }}</h3>
+                        <h3 class="text-base font-extrabold text-white tracking-tight leading-snug drop-shadow-md group-hover:text-indigo-300 transition-colors">{{ movie.title }}</h3>
                         {% if movie.duration %}
                         <p class="text-xs text-slate-300 mt-0.5 font-medium">{{ movie.duration }}</p>
                         {% endif %}
                     </div>
-                </div>
+                </a>
 
                 <!-- Card Details Body -->
                 <div class="p-4 space-y-3">
@@ -97,9 +104,9 @@
 
             <!-- Card Bottom Bar -->
             <div class="p-4 pt-0">
-                <a href="/" target="_blank" class="w-full flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors border border-slate-700">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                    <span>Play in Web Player</span>
+                <a href="/movie/{{ movie.id }}" class="w-full flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shadow-md shadow-indigo-600/20">
+                    <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
+                    <span>Play Movie</span>
                 </a>
             </div>
 

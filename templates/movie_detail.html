@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}{{ movie.title }} ({{ movie.year }}) - OriginCast{% endblock %}
+
+{% block content %}
+<div class="space-y-8 max-w-7xl mx-auto">
+
+    <!-- Top Breadcrumb & Actions -->
+    <div class="flex items-center justify-between text-xs text-slate-400">
+        <div class="flex items-center space-x-2">
+            <a href="/" class="hover:text-white transition-colors">Home</a>
+            <span>/</span>
+            <a href="/movies" class="hover:text-white transition-colors">Movies</a>
+            <span>/</span>
+            <span class="text-indigo-400 font-semibold">{{ movie.title }}</span>
+        </div>
+        <a href="/" class="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            <span>Back to Library</span>
+        </a>
+    </div>
+
+    <!-- Cinema Video Player Stage -->
+    <div class="relative w-full rounded-3xl overflow-hidden bg-slate-950 border border-slate-800 shadow-2xl shadow-indigo-950/20">
+        <div class="relative aspect-video w-full bg-black">
+            <video id="video-player" 
+                   controls 
+                   playsinline 
+                   preload="metadata"
+                   poster="{{ movie.backdrop or movie.poster or movie.img }}"
+                   class="w-full h-full object-contain">
+                <source src="{{ url_for('stream_video', filepath=movie.file_path) }}" type="video/mp4">
+                Your browser does not support HTML5 video.
+            </video>
+        </div>
+
+        <!-- Player Underbar Info -->
+        <div class="p-4 sm:p-6 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex items-center space-x-4">
+                <div class="p-3 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-black text-white tracking-tight">{{ movie.title }}</h1>
+                    <p class="text-xs text-slate-400 mt-0.5">
+                        {{ movie.year }} • {{ movie.duration or '2h 00m' }} • 
+                        <span class="text-amber-400 font-bold">★ {{ movie.rating or '8.5' }}</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Quick Player Actions -->
+            <div class="flex items-center space-x-2.5">
+                <button onclick="toggleTheaterMode()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors flex items-center space-x-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                    <span>Fullscreen</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Movie Details & Metadata Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Left: Synopsis & Info (2 Columns) -->
+        <div class="lg:col-span-2 space-y-6">
+            <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                <h3 class="text-base font-bold text-white tracking-tight">Overview & Storyline</h3>
+                <p class="text-sm text-slate-300 leading-relaxed">
+                    {{ movie.overview or 'No summary recorded in local metadata. Stream directly from folder.' }}
+                </p>
+
+                <!-- Genres -->
+                <div class="pt-2 flex flex-wrap gap-2">
+                    {% if movie.genres is iterable and movie.genres is not string %}
+                        {% for genre in movie.genres %}
+                        <span class="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-950/60 text-indigo-300 border border-indigo-800/60">{{ genre }}</span>
+                        {% endfor %}
+                    {% else %}
+                        <span class="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-950/60 text-indigo-300 border border-indigo-800/60">{{ movie.genres or 'Feature Film' }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- More Movies Recommendation Grid -->
+            {% if other_movies %}
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-base font-bold text-white tracking-tight">More Movies in Library</h3>
+                    <a href="/movies" class="text-xs text-indigo-400 hover:underline">View All &rarr;</a>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {% for item in other_movies %}
+                    <a href="/movie/{{ item.id }}" class="group block rounded-xl bg-slate-900 border border-slate-800/80 hover:border-indigo-500/50 overflow-hidden transition-all shadow-md">
+                        <div class="relative aspect-[2/3] w-full bg-slate-950 overflow-hidden">
+                            <img src="{{ item.poster or item.img }}" alt="{{ item.title }}" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                            <div class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-slate-950/80 backdrop-blur-sm text-amber-400 font-bold text-[10px]">
+                                ★ {{ item.rating or '8.5' }}
+                            </div>
+                        </div>
+                        <div class="p-2.5">
+                            <h4 class="font-bold text-white text-xs truncate group-hover:text-indigo-300 transition-colors">{{ item.title }}</h4>
+                            <p class="text-[11px] text-slate-400 mt-0.5">{{ item.year }}</p>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+
+        <!-- Right: Technical Media Specs Sidebar -->
+        <div class="space-y-6">
+            <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider">File & Stream Specs</h3>
+                
+                <div class="space-y-3 text-xs font-mono">
+                    <div class="p-3 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1">
+                        <span class="text-slate-500 text-[11px] block">Relative Path</span>
+                        <span class="text-indigo-300 break-all select-all">{{ movie.file_path }}</span>
+                    </div>
+
+                    <div class="p-3 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1">
+                        <span class="text-slate-500 text-[11px] block">Directory Location</span>
+                        <span class="text-slate-300 break-all">{{ movie.folder_path }}</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1">
+                            <span class="text-slate-500 text-[11px] block">File Size</span>
+                            <span class="text-emerald-400 font-bold">{{ movie.file_size|filesize if movie.file_size else 'Available' }}</span>
+                        </div>
+                        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1">
+                            <span class="text-slate-500 text-[11px] block">Protocol</span>
+                            <span class="text-slate-300">HTTP 206 (Range)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Link -->
+                <div class="pt-2 border-t border-slate-800">
+                    <a href="/admin/movies" class="text-xs text-slate-400 hover:text-white flex items-center justify-between">
+                        <span>Manage in Admin Catalog</span>
+                        <span>&rarr;</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+    function toggleTheaterMode() {
+        const video = document.getElementById('video-player');
+        if (!document.fullscreenElement) {
+            if (video.requestFullscreen) video.requestFullscreen();
+            else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+        }
+    }
+</script>
+{% endblock %}

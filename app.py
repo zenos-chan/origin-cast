@@ -3,7 +3,8 @@ import platform
 import functools
 import argparse
 from pathlib import Path
-from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash
+import urllib.parse
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash, send_file
 import flask
 from engine import Engine
 from extensions import default_extension_manager
@@ -118,6 +119,95 @@ def tv():
     """TV route: Returns all scanned TV shows."""
     context = media_engine.get_homepage_context()
     return render_template("homepage.html", **context)
+
+
+@app.route("/movie/<path:movie_id>")
+def movie_detail(movie_id):
+    """Movie player and detail page for viewing local video files."""
+    decoded_id = urllib.parse.unquote(movie_id).strip().lower()
+    selected_movie = None
+    for m in media_engine.movies:
+        m_id = str(m.get("id", "")).lower()
+        m_title = str(m.get("title", "")).lower()
+        if decoded_id in (m_id, m_title) or decoded_id.replace("-", " ") in (m_id.replace("-", " "), m_title):
+            selected_movie = m
+            break
+    if not selected_movie and media_engine.movies:
+        selected_movie = media_engine.movies[0]
+    if not selected_movie:
+        return redirect(url_for("home"))
+
+    other_movies = [m for m in media_engine.movies if m.get("id") != selected_movie.get("id")][:6]
+    return render_template("movie_detail.html", movie=selected_movie, other_movies=other_movies)
+
+
+@app.route("/tv/<path:tv_id>")
+def tv_detail(tv_id):
+    """TV series player and interactive episode browser page."""
+    decoded_id = urllib.parse.unquote(tv_id).strip().lower()
+    selected_show = None
+    for t in media_engine.tv_shows:
+        t_id = str(t.get("id", "")).lower()
+        t_title = str(t.get("title", "")).lower()
+        if decoded_id in (t_id, t_title) or decoded_id.replace("-", " ") in (t_id.replace("-", " "), t_title):
+            selected_show = t
+            break
+    if not selected_show and media_engine.tv_shows:
+        selected_show = media_engine.tv_shows[0]
+    if not selected_show:
+        return redirect(url_for("home"))
+
+    req_season = request.args.get("season", "1")
+    req_episode = request.args.get("episode", "1")
+    seasons = selected_show.get("seasons", {})
+    current_ep = None
+    if seasons:
+        season_eps = seasons.get(str(req_season)) or seasons.get(list(seasons.keys())[0])
+        if season_eps:
+            for ep in season_eps:
+                if str(ep.get("episode")) == str(req_episode):
+                    current_ep = ep
+                    break
+            if not current_ep:
+                current_ep = season_eps[0]
+
+    return render_template("tv_detail.html", show=selected_show, seasons=seasons, current_episode=current_ep)
+
+
+@app.route("/stream/<path:filepath>")
+def stream_video(filepath):
+    """
+    Streams media video files supporting HTTP 206 Range requests for seeking.
+    Resolves video files stored within movies/ or tv/ directory structures.
+    """
+    decoded_path = urllib.parse.unquote(filepath)
+    target = Path(decoded_path)
+    if not target.is_absolute():
+        target = (Path(".").resolve() / decoded_path).resolve()
+    else:
+        target = target.resolve()
+
+    if not target.is_file():
+        for base in [Path(media_engine.movies_dir).resolve(), Path(media_engine.tv_dir).resolve()]:
+            c = (base / decoded_path).resolve()
+            if c.is_file():
+                target = c
+                break
+
+    if not target.is_file():
+        return jsonify({"status": "error", "message": f"File '{filepath}' not found."}), 404
+
+    ext = target.suffix.lower()
+    mimetypes = {
+        ".mp4": "video/mp4",
+        ".m4v": "video/mp4",
+        ".webm": "video/webm",
+        ".mkv": "video/webm",
+        ".mov": "video/quicktime",
+        ".avi": "video/x-msvideo"
+    }
+    mimetype = mimetypes.get(ext, "video/mp4")
+    return send_file(target, mimetype=mimetype, conditional=True, as_attachment=False)
 
 
 @app.route("/api/scan")

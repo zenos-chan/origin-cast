@@ -58,13 +58,13 @@
                         {{ item.overview }}
                     </p>
                     <div class="flex items-center space-x-4 pt-2">
-                        <button class="inline-flex items-center px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-colors shadow-lg shadow-indigo-600/30">
+                        <a href="{% if item.type == 'tv' %}/tv/{{ item.id }}{% else %}/movie/{{ item.id }}{% endif %}" class="inline-flex items-center px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-colors shadow-lg shadow-indigo-600/30">
                             <svg class="w-5 h-5 mr-2 fill-current" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
                             Watch Now
-                        </button>
-                        <button class="inline-flex items-center px-5 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-semibold backdrop-blur-md transition-colors border border-slate-700">
+                        </a>
+                        <a href="{% if item.type == 'tv' %}/tv/{{ item.id }}{% else %}/movie/{{ item.id }}{% endif %}" class="inline-flex items-center px-5 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-semibold backdrop-blur-md transition-colors border border-slate-700">
                             Details
-                        </button>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -206,7 +206,7 @@
                 {'title': 'Solar Wind', 'year': '2025', 'rating': '8.0', 'img': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=400&q=80'},
                 {'title': 'Echo Protocol', 'year': '2024', 'rating': '8.3', 'img': 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=400&q=80'}
             ]) %}
-            <div class="group relative flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-800/80 hover:border-slate-700 transition-all hover:shadow-xl">
+            <a href="/movie/{{ item.id }}" class="group relative flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-800/80 hover:border-indigo-500/50 transition-all hover:shadow-xl cursor-pointer">
                 <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800">
                     <img src="{{ item.poster or item.img }}" 
                          alt="{{ item.title }}" 
@@ -221,7 +221,7 @@
                     <h4 class="font-medium text-sm text-slate-100 truncate group-hover:text-indigo-400 transition-colors">{{ item.title }}</h4>
                     <p class="text-xs text-slate-400 mt-1">{{ item.year }} • Movie</p>
                 </div>
-            </div>
+            </a>
             {% endfor %}
         </div>
     </section>
@@ -248,7 +248,7 @@
                 {'title': 'Chronos Shift', 'rank': '5', 'rating': '8.8', 'img': 'https://images.unsplash.com/photo-1533929736458-ca588d08c8be?auto=format&fit=crop&w=400&q=80'},
                 {'title': 'Sovereign Sky', 'rank': '6', 'rating': '8.7', 'img': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80'}
             ]) %}
-            <div class="group relative flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-800/80 hover:border-slate-700 transition-all hover:shadow-xl">
+            <a href="/movie/{{ item.id }}" class="group relative flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-800/80 hover:border-indigo-500/50 transition-all hover:shadow-xl cursor-pointer">
                 <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800">
                     <img src="{{ item.poster or item.img }}" 
                          alt="{{ item.title }}" 
@@ -266,7 +266,7 @@
                     <h4 class="font-medium text-sm text-slate-100 truncate group-hover:text-indigo-400 transition-colors">{{ item.title }}</h4>
                     <p class="text-xs text-slate-400 mt-1">Top Rated Movie</p>
                 </div>
-            </div>
+            </a>
             {% endfor %}
         </div>
     </section>
@@ -293,7 +293,7 @@
                 {'title': 'The Syndicate', 'season': 'Season 3', 'rating': '8.4', 'img': 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80'},
                 {'title': 'Edge of Orbit', 'season': 'Season 2', 'rating': '8.5', 'img': 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?auto=format&fit=crop&w=400&q=80'}
             ]) %}
-            <div class="group relative flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-800/80 hover:border-slate-700 transition-all hover:shadow-xl">
+            <a href="/tv/{{ item.id }}" class="group relative flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-800/80 hover:border-indigo-500/50 transition-all hover:shadow-xl cursor-pointer">
                 <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800">
                     <img src="{{ item.poster or item.img }}" 
                          alt="{{ item.title }}" 
@@ -308,7 +308,7 @@
                     <h4 class="font-medium text-sm text-slate-100 truncate group-hover:text-indigo-400 transition-colors">{{ item.title }}</h4>
                     <p class="text-xs text-slate-400 mt-1">{{ item.season }}</p>
                 </div>
-            </div>
+            </a>
             {% endfor %}
         </div>
     </section>
@@ -335,7 +335,7 @@
                 {'title': 'Station Seven', 'rank': '5', 'rating': '9.0', 'img': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=400&q=80'},
                 {'title': 'City of Mirrors', 'rank': '6', 'rating': '8.9', 'img': 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=400&q=80'}
             ]) %}
-            <div class="group relative flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-800/80 hover:border-slate-700 transition-all hover:shadow-xl">
+            <a href="/tv/{{ item.id }}" class="group relative flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-800/80 hover:border-indigo-500/50 transition-all hover:shadow-xl cursor-pointer">
                 <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800">
                     <img src="{{ item.poster or item.img }}" 
                          alt="{{ item.title }}" 
@@ -353,7 +353,7 @@
                     <h4 class="font-medium text-sm text-slate-100 truncate group-hover:text-indigo-400 transition-colors">{{ item.title }}</h4>
                     <p class="text-xs text-slate-400 mt-1">Top Rated TV</p>
                 </div>
-            </div>
+            </a>
             {% endfor %}
         </div>
     </section>

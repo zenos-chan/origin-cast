@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}{{ show.title }} - OriginCast{% endblock %}
+
+{% block content %}
+<div class="space-y-8 max-w-7xl mx-auto">
+
+    <!-- Top Breadcrumb & Actions -->
+    <div class="flex items-center justify-between text-xs text-slate-400">
+        <div class="flex items-center space-x-2">
+            <a href="/" class="hover:text-white transition-colors">Home</a>
+            <span>/</span>
+            <a href="/tv" class="hover:text-white transition-colors">TV Shows</a>
+            <span>/</span>
+            <span class="text-indigo-400 font-semibold">{{ show.title }}</span>
+        </div>
+        <a href="/" class="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            <span>Back to Library</span>
+        </a>
+    </div>
+
+    <!-- Cinema Video Player Stage -->
+    <div class="relative w-full rounded-3xl overflow-hidden bg-slate-950 border border-slate-800 shadow-2xl shadow-indigo-950/20">
+        <div class="relative aspect-video w-full bg-black">
+            <video id="video-player" 
+                   controls 
+                   playsinline 
+                   preload="metadata"
+                   poster="{{ show.backdrop or show.poster or show.img }}"
+                   class="w-full h-full object-contain">
+                {% if current_episode and current_episode.file_path %}
+                <source id="video-source" src="{{ url_for('stream_video', filepath=current_episode.file_path) }}" type="video/mp4">
+                {% endif %}
+                Your browser does not support HTML5 video.
+            </video>
+        </div>
+
+        <!-- Player Underbar Info & Now Playing Indicator -->
+        <div class="p-4 sm:p-6 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex items-center space-x-4">
+                <div class="p-3 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">NOW PLAYING</span>
+                        <h1 id="now-playing-title" class="text-lg sm:text-xl font-black text-white tracking-tight truncate max-w-xl">
+                            {{ current_episode.title if current_episode else show.title }}
+                        </h1>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1">
+                        {{ show.title }} • <span id="now-playing-sub">Season {{ current_episode.season|default('1') }} Episode {{ current_episode.episode|default('1') }}</span> • 
+                        <span class="text-amber-400 font-bold">★ {{ show.rating or '8.5' }}</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Fullscreen Button -->
+            <div class="flex items-center space-x-2.5">
+                <button onclick="toggleTheaterMode()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors flex items-center space-x-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                    <span>Fullscreen</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive Episodes & Series Overview Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Left: Interactive Season & Episode Picker (2 Columns) -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-5">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <h3 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
+                        <span>📺 Episodes Library</span>
+                    </h3>
+                    <span class="text-xs text-slate-400 font-mono">{{ show.total_episodes|default('0') }} Available Episodes</span>
+                </div>
+
+                <!-- Season Tabs -->
+                {% if seasons %}
+                <div class="flex items-center space-x-2 overflow-x-auto pb-1" id="season-tabs">
+                    {% for s_num in seasons.keys()|sort %}
+                    <button onclick="switchSeason('{{ s_num }}')" 
+                            id="tab-season-{{ s_num }}"
+                            class="season-tab px-4 py-2 rounded-xl text-xs font-bold transition-all {% if loop.first %}bg-indigo-600 text-white shadow-lg shadow-indigo-600/30{% else %}bg-slate-950 text-slate-400 hover:text-white border border-slate-800{% endif %}">
+                        Season {{ s_num }}
+                    </button>
+                    {% endfor %}
+                </div>
+
+                <!-- Episodes List Container per Season -->
+                <div id="episodes-container" class="space-y-2.5">
+                    {% for s_num, ep_list in seasons.items() %}
+                    <div id="season-panel-{{ s_num }}" class="season-panel space-y-2.5 {% if not loop.first %}hidden{% endif %}">
+                        {% for ep in ep_list %}
+                        <div onclick="playEpisode('{{ ep.file_path }}', '{{ ep.title|replace('\'', '\\\'') }}', '{{ ep.season }}', '{{ ep.episode }}')" 
+                             id="ep-card-{{ ep.season }}-{{ ep.episode }}"
+                             class="ep-card group p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 hover:border-indigo-500/60 hover:bg-slate-900/60 transition-all cursor-pointer flex items-center justify-between gap-4 {% if current_episode and current_episode.file_path == ep.file_path %}border-indigo-500 bg-indigo-950/20{% endif %}">
+                            
+                            <div class="flex items-center space-x-3 min-w-0">
+                                <div class="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center font-bold text-xs text-indigo-400 flex-shrink-0 group-hover:scale-105 transition-transform">
+                                    E{{ ep.episode }}
+                                </div>
+                                <div class="min-w-0">
+                                    <h4 class="font-bold text-white text-xs truncate group-hover:text-indigo-300 transition-colors">{{ ep.title }}</h4>
+                                    <p class="text-[11px] text-slate-400 font-mono mt-0.5 truncate">{{ ep.file_path }}</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center space-x-3 flex-shrink-0">
+                                <span class="text-xs font-mono text-slate-400">{{ ep.file_size|filesize if ep.file_size else 'Playable' }}</span>
+                                <span class="px-2.5 py-1 rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 text-xs font-semibold group-hover:bg-indigo-600 group-hover:text-white transition-colors flex items-center space-x-1">
+                                    <span>▶</span>
+                                    <span>Play</span>
+                                </span>
+                            </div>
+
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-500 py-4 text-center">No episodes recorded in folder.</p>
+                {% endif %}
+
+            </div>
+
+            <!-- Series Overview & Synopsis -->
+            <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                <h3 class="text-base font-bold text-white tracking-tight">Series Synopsis</h3>
+                <p class="text-sm text-slate-300 leading-relaxed">
+                    {{ show.overview or 'Local media directory contains recorded television broadcast files.' }}
+                </p>
+            </div>
+
+        </div>
+
+        <!-- Right: Technical Details & Poster (1 Column) -->
+        <div class="space-y-6">
+            <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                <div class="aspect-[2/3] w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-800 shadow-md">
+                    <img src="{{ show.poster or show.img }}" alt="{{ show.title }}" class="w-full h-full object-cover">
+                </div>
+
+                <div class="space-y-3 pt-2">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-400">Rating</span>
+                        <span class="font-bold text-amber-400">★ {{ show.rating or '8.5' }}</span>
+                    </div>
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-400">First Aired</span>
+                        <span class="font-bold text-white">{{ show.year or '2024' }}</span>
+                    </div>
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-400">Total Seasons</span>
+                        <span class="font-bold text-indigo-300">{{ show.seasons_count|default('1') }}</span>
+                    </div>
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-400">Directory</span>
+                        <span class="font-mono text-slate-400 text-[11px] truncate max-w-[180px]" title="{{ show.folder_path }}">{{ show.folder_path }}</span>
+                    </div>
+                </div>
+
+                <!-- Genres -->
+                <div class="pt-2 border-t border-slate-800 flex flex-wrap gap-1.5">
+                    {% if show.genres is iterable and show.genres is not string %}
+                        {% for genre in show.genres %}
+                        <span class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-800 text-slate-300 border border-slate-700/60">{{ genre }}</span>
+                        {% endfor %}
+                    {% else %}
+                        <span class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-800 text-slate-300 border border-slate-700/60">{{ show.genres or 'Television' }}</span>
+                    {% endif %}
+                </div>
+
+                <div class="pt-2 border-t border-slate-800">
+                    <a href="/admin/tv" class="text-xs text-slate-400 hover:text-white flex items-center justify-between">
+                        <span>Manage in Admin Catalog</span>
+                        <span>&rarr;</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+    function toggleTheaterMode() {
+        const video = document.getElementById('video-player');
+        if (!document.fullscreenElement) {
+            if (video.requestFullscreen) video.requestFullscreen();
+            else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+        }
+    }
+
+    function switchSeason(seasonNum) {
+        document.querySelectorAll('.season-tab').forEach(tab => {
+            tab.className = 'season-tab px-4 py-2 rounded-xl text-xs font-bold transition-all bg-slate-950 text-slate-400 hover:text-white border border-slate-800';
+        });
+        const activeTab = document.getElementById(`tab-season-${seasonNum}`);
+        if (activeTab) {
+            activeTab.className = 'season-tab px-4 py-2 rounded-xl text-xs font-bold transition-all bg-indigo-600 text-white shadow-lg shadow-indigo-600/30';
+        }
+
+        document.querySelectorAll('.season-panel').forEach(panel => panel.classList.add('hidden'));
+        const activePanel = document.getElementById(`season-panel-${seasonNum}`);
+        if (activePanel) activePanel.classList.remove('hidden');
+    }
+
+    function playEpisode(filePath, title, seasonNum, epNum) {
+        const video = document.getElementById('video-player');
+        const streamUrl = `/stream/${encodeURIComponent(filePath)}`;
+        
+        video.src = streamUrl;
+        video.load();
+        video.play().catch(err => console.log('Autoplay deferred:', err));
+
+        document.getElementById('now-playing-title').textContent = title;
+        document.getElementById('now-playing-sub').textContent = `Season ${seasonNum} Episode ${epNum}`;
+
+        document.querySelectorAll('.ep-card').forEach(card => {
+            card.classList.remove('border-indigo-500', 'bg-indigo-950/20');
+        });
+        const activeCard = document.getElementById(`ep-card-${seasonNum}-${epNum}`);
+        if (activeCard) {
+            activeCard.classList.add('border-indigo-500', 'bg-indigo-950/20');
+        }
+
+        // Scroll smoothly to player
+        video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+</script>
+{% endblock %}
