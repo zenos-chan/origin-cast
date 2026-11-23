@@ -1,0 +1,17 @@
+[flake8]
+max-line-length = 120
+exclude =
+    .git,
+    __pycache__,
+    bin,
+    lib,
+    include,
+    movies,
+    tv,
+    templates,
+    .venv,
+    venv
+ignore =
+    E501,
+    W503,
+    E203

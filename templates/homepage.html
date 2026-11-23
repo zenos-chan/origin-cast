@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+
+{% block title %}Home - OriginCast{% endblock %}
+
+{% block content %}
+<div class="space-y-12 pb-12">
+
+    <!-- 1. HERO SLIDER -->
+    <section id="hero-slider" class="relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-2xl">
+        <!-- Slides Wrapper -->
+        <div id="slider-track" class="relative w-full h-[380px] sm:h-[460px] lg:h-[540px] overflow-hidden">
+            {% for item in slider_items|default([
+                {
+                    'title': 'The Odessye',
+                    'year': '2026',
+                    'duration': '2h 35m',
+                    'rating': '9.1',
+                    'overview': 'An epic odyssey across cosmic expanses to discover humanity\'s primeval origins.',
+                    'backdrop': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1920&q=80',
+                    'genres': ['Sci-Fi', 'Adventure'],
+                    'type': 'movie'
+                },
+                {
+                    'title': 'Shadow Protocol',
+                    'year': '2025',
+                    'duration': 'Season 1',
+                    'rating': '9.2',
+                    'overview': 'When an undercover operative is betrayed by their own agency, they must expose a syndicate operating within global power structures.',
+                    'backdrop': 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1920&q=80',
+                    'genres': ['Drama', 'Mystery'],
+                    'type': 'tv'
+                }
+            ]) %}
+            <div class="slide absolute inset-0 transition-opacity duration-700 ease-in-out {% if loop.first %}opacity-100{% else %}opacity-0 pointer-events-none{% endif %} flex items-end">
+                <img src="{{ item.backdrop or item.poster or item.img }}" 
+                     alt="{{ item.title }}" 
+                     loading="{% if loop.first %}eager{% else %}lazy{% endif %}"
+                     decoding="async"
+                     class="absolute inset-0 w-full h-full object-cover">
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent"></div>
+                <div class="relative z-10 p-6 sm:p-10 lg:p-12 max-w-3xl space-y-4">
+                    <div class="flex items-center space-x-3">
+                        <span class="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider rounded-full {% if item.type == 'tv' %}bg-emerald-600{% else %}bg-indigo-600{% endif %} text-white">
+                            {% if item.type == 'tv' %}Trending Series{% else %}Featured Movie{% endif %}
+                        </span>
+                        <span class="text-sm font-medium text-amber-400 flex items-center">
+                            <svg class="w-4 h-4 mr-1 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                            {{ item.rating }}
+                        </span>
+                        <span class="text-slate-400 text-sm">
+                            {{ item.year }}
+                            {% if item.duration %} • {{ item.duration }}{% endif %}
+                            {% if item.genres %} • {{ item.genres|join(' / ') if item.genres is iterable and item.genres is not string else item.genres }}{% endif %}
+                        </span>
+                    </div>
+                    <h2 class="text-3xl sm:text-5xl font-black text-white tracking-tight drop-shadow-md">{{ item.title }}</h2>
+                    <p class="text-slate-300 text-sm sm:text-base line-clamp-2 sm:line-clamp-3 leading-relaxed">
+                        {{ item.overview }}
+                    </p>
+                    <div class="flex items-center space-x-4 pt-2">
+                        <button class="inline-flex items-center px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-colors shadow-lg shadow-indigo-600/30">
+                            <svg class="w-5 h-5 mr-2 fill-current" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
+                            Watch Now
+                        </button>
+                        <button class="inline-flex items-center px-5 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-semibold backdrop-blur-md transition-colors border border-slate-700">
+                            Details
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Slider Controls -->
+        <button id="slider-prev" class="absolute left-4 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-slate-900/60 hover:bg-slate-800 text-white backdrop-blur-md border border-slate-700/60 transition-all z-20">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <button id="slider-next" class="absolute right-4 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-slate-900/60 hover:bg-slate-800 text-white backdrop-blur-md border border-slate-700/60 transition-all z-20">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </button>
+
+        <!-- Dots -->
+        <div class="absolute bottom-4 right-8 flex space-x-2 z-20">
+            {% for item in slider_items|default([1, 2]) %}
+            <button class="slider-dot w-3 h-3 rounded-full {% if loop.first %}bg-indigo-500{% else %}bg-slate-600{% endif %} transition-all" data-index="{{ loop.index0 }}"></button>
+            {% endfor %}
+        </div>
+    </section>
+
+
+    <!-- 2. WHAT WAS BEING WATCHED (CONTINUE WATCHING) -->
+    <section id="continue-watching" class="space-y-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <svg class="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <h3 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Continue Watching</h3>
+            </div>
+            <span class="text-xs text-slate-400 font-medium">Resume where you left off</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <!-- Continue Card 1 -->
+            <div class="group relative bg-slate-900/90 rounded-xl overflow-hidden border border-slate-800 hover:border-slate-700 transition-all shadow-md">
+                <div class="relative aspect-video w-full overflow-hidden bg-slate-800">
+                    <img src="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?auto=format&fit=crop&w=600&q=80" 
+                         alt="Cyber City" 
+                         loading="lazy" 
+                         decoding="async" 
+                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                    <div class="absolute inset-0 bg-slate-950/40 group-hover:bg-slate-950/20 transition-colors flex items-center justify-center">
+                        <div class="w-12 h-12 rounded-full bg-indigo-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <svg class="w-6 h-6 fill-current translate-x-0.5" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
+                        </div>
+                    </div>
+                    <!-- Progress Bar -->
+                    <div class="absolute bottom-0 inset-x-0 h-1.5 bg-slate-700">
+                        <div class="h-full bg-indigo-500 rounded-r" style="width: 68%;"></div>
+                    </div>
+                </div>
+                <div class="p-4 flex items-center justify-between">
+                    <div>
+                        <h4 class="font-semibold text-white group-hover:text-indigo-400 transition-colors">Neo Tokyo 2099</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">S2:E4 • 24m remaining</p>
+                    </div>
+                    <span class="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">TV Show</span>
+                </div>
+            </div>
+
+            <!-- Continue Card 2 -->
+            <div class="group relative bg-slate-900/90 rounded-xl overflow-hidden border border-slate-800 hover:border-slate-700 transition-all shadow-md">
+                <div class="relative aspect-video w-full overflow-hidden bg-slate-800">
+                    <img src="https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80" 
+                         alt="The Deep Silence" 
+                         loading="lazy" 
+                         decoding="async" 
+                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                    <div class="absolute inset-0 bg-slate-950/40 group-hover:bg-slate-950/20 transition-colors flex items-center justify-center">
+                        <div class="w-12 h-12 rounded-full bg-indigo-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <svg class="w-6 h-6 fill-current translate-x-0.5" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
+                        </div>
+                    </div>
+                    <!-- Progress Bar -->
+                    <div class="absolute bottom-0 inset-x-0 h-1.5 bg-slate-700">
+                        <div class="h-full bg-indigo-500 rounded-r" style="width: 42%;"></div>
+                    </div>
+                </div>
+                <div class="p-4 flex items-center justify-between">
+                    <div>
+                        <h4 class="font-semibold text-white group-hover:text-indigo-400 transition-colors">The Deep Silence</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">1h 12m remaining</p>
+                    </div>
+                    <span class="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">Movie</span>
+                </div>
+            </div>
+
+            <!-- Continue Card 3 -->
+            <div class="group relative bg-slate-900/90 rounded-xl overflow-hidden border border-slate-800 hover:border-slate-700 transition-all shadow-md hidden lg:block">
+                <div class="relative aspect-video w-full overflow-hidden bg-slate-800">
+                    <img src="https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80" 
+                         alt="Crown of Thorns" 
+                         loading="lazy" 
+                         decoding="async" 
+                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                    <div class="absolute inset-0 bg-slate-950/40 group-hover:bg-slate-950/20 transition-colors flex items-center justify-center">
+                        <div class="w-12 h-12 rounded-full bg-indigo-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <svg class="w-6 h-6 fill-current translate-x-0.5" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
+                        </div>
+                    </div>
+                    <!-- Progress Bar -->
+                    <div class="absolute bottom-0 inset-x-0 h-1.5 bg-slate-700">
+                        <div class="h-full bg-indigo-500 rounded-r" style="width: 85%;"></div>
+                    </div>
+                </div>
+                <div class="p-4 flex items-center justify-between">
+                    <div>
+                        <h4 class="font-semibold text-white group-hover:text-indigo-400 transition-colors">Crown of Thorns</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">S1:E8 • 8m remaining</p>
+                    </div>
+                    <span class="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">TV Show</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- 3. RECENT MOVIES -->
+    <section id="recent-movies" class="space-y-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Recent Movies</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Newly added film titles in your library</p>
+            </div>
+            <a href="/movies" class="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors flex items-center">
+                View all <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </a>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {% for item in recent_movies|default([
+                {'title': 'Aurora Borealis', 'year': '2025', 'rating': '8.1', 'img': 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Dune Mirage', 'year': '2024', 'rating': '8.5', 'img': 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Neon Velocity', 'year': '2025', 'rating': '7.9', 'img': 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Abyssal Point', 'year': '2024', 'rating': '7.4', 'img': 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Solar Wind', 'year': '2025', 'rating': '8.0', 'img': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Echo Protocol', 'year': '2024', 'rating': '8.3', 'img': 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=400&q=80'}
+            ]) %}
+            <div class="group relative flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-800/80 hover:border-slate-700 transition-all hover:shadow-xl">
+                <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800">
+                    <img src="{{ item.poster or item.img }}" 
+                         alt="{{ item.title }}" 
+                         loading="lazy" 
+                         decoding="async" 
+                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                    <div class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-slate-950/80 backdrop-blur-sm text-amber-400 font-bold text-xs flex items-center">
+                        ★ {{ item.rating }}
+                    </div>
+                </div>
+                <div class="p-3">
+                    <h4 class="font-medium text-sm text-slate-100 truncate group-hover:text-indigo-400 transition-colors">{{ item.title }}</h4>
+                    <p class="text-xs text-slate-400 mt-1">{{ item.year }} • Movie</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+
+    <!-- 4. TOP MOVIES -->
+    <section id="top-movies" class="space-y-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Top Rated Movies</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Highest rated films by community and critics</p>
+            </div>
+            <a href="/movies" class="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors flex items-center">
+                View all <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </a>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {% for item in top_movies|default([
+                {'title': 'The Final Ascent', 'rank': '1', 'rating': '9.4', 'img': 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Cosmic Odyssey', 'rank': '2', 'rating': '9.2', 'img': 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Ghost Frequency', 'rank': '3', 'rating': '9.0', 'img': 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'The Last Embers', 'rank': '4', 'rating': '8.9', 'img': 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Chronos Shift', 'rank': '5', 'rating': '8.8', 'img': 'https://images.unsplash.com/photo-1533929736458-ca588d08c8be?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Sovereign Sky', 'rank': '6', 'rating': '8.7', 'img': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80'}
+            ]) %}
+            <div class="group relative flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-800/80 hover:border-slate-700 transition-all hover:shadow-xl">
+                <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800">
+                    <img src="{{ item.poster or item.img }}" 
+                         alt="{{ item.title }}" 
+                         loading="lazy" 
+                         decoding="async" 
+                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                    <span class="absolute top-2 left-2 w-6 h-6 rounded-md bg-indigo-600/90 backdrop-blur-sm text-white font-extrabold text-xs flex items-center justify-center">
+                        #{{ item.rank }}
+                    </span>
+                    <div class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-slate-950/80 backdrop-blur-sm text-amber-400 font-bold text-xs flex items-center">
+                        ★ {{ item.rating }}
+                    </div>
+                </div>
+                <div class="p-3">
+                    <h4 class="font-medium text-sm text-slate-100 truncate group-hover:text-indigo-400 transition-colors">{{ item.title }}</h4>
+                    <p class="text-xs text-slate-400 mt-1">Top Rated Movie</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+
+    <!-- 5. RECENT TV -->
+    <section id="recent-tv" class="space-y-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Recent TV Shows</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Freshly updated series and newest seasons</p>
+            </div>
+            <a href="/tv" class="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors flex items-center">
+                View all <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </a>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {% for item in recent_tv|default([
+                {'title': 'Silicon Rift', 'season': 'Season 2', 'rating': '8.6', 'img': 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Blackout Protocol', 'season': 'Season 1', 'rating': '8.2', 'img': 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Metropolis Confidential', 'season': 'Season 4', 'rating': '8.7', 'img': 'https://images.unsplash.com/photo-1477959858617-67f30bc75b82?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Northern Lights', 'season': 'Season 1', 'rating': '7.8', 'img': 'https://images.unsplash.com/photo-1483347756197-71ef80e95f73?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'The Syndicate', 'season': 'Season 3', 'rating': '8.4', 'img': 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Edge of Orbit', 'season': 'Season 2', 'rating': '8.5', 'img': 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?auto=format&fit=crop&w=400&q=80'}
+            ]) %}
+            <div class="group relative flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-800/80 hover:border-slate-700 transition-all hover:shadow-xl">
+                <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800">
+                    <img src="{{ item.poster or item.img }}" 
+                         alt="{{ item.title }}" 
+                         loading="lazy" 
+                         decoding="async" 
+                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                    <div class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-slate-950/80 backdrop-blur-sm text-amber-400 font-bold text-xs flex items-center">
+                        ★ {{ item.rating }}
+                    </div>
+                </div>
+                <div class="p-3">
+                    <h4 class="font-medium text-sm text-slate-100 truncate group-hover:text-indigo-400 transition-colors">{{ item.title }}</h4>
+                    <p class="text-xs text-slate-400 mt-1">{{ item.season }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+
+    <!-- 6. TOP TV -->
+    <section id="top-tv" class="space-y-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Top Rated TV Shows</h3>
+                <p class="text-xs text-slate-400 mt-0.5">All-time acclaimed television series</p>
+            </div>
+            <a href="/tv" class="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors flex items-center">
+                View all <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </a>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {% for item in top_tv|default([
+                {'title': 'Kingdom in Chaos', 'rank': '1', 'rating': '9.6', 'img': 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Quantum Division', 'rank': '2', 'rating': '9.4', 'img': 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'The Detective', 'rank': '3', 'rating': '9.3', 'img': 'https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Apex Predators', 'rank': '4', 'rating': '9.1', 'img': 'https://images.unsplash.com/photo-1533929736458-ca588d08c8be?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'Station Seven', 'rank': '5', 'rating': '9.0', 'img': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=400&q=80'},
+                {'title': 'City of Mirrors', 'rank': '6', 'rating': '8.9', 'img': 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=400&q=80'}
+            ]) %}
+            <div class="group relative flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-800/80 hover:border-slate-700 transition-all hover:shadow-xl">
+                <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800">
+                    <img src="{{ item.poster or item.img }}" 
+                         alt="{{ item.title }}" 
+                         loading="lazy" 
+                         decoding="async" 
+                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                    <span class="absolute top-2 left-2 w-6 h-6 rounded-md bg-indigo-600/90 backdrop-blur-sm text-white font-extrabold text-xs flex items-center justify-center">
+                        #{{ item.rank }}
+                    </span>
+                    <div class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-slate-950/80 backdrop-blur-sm text-amber-400 font-bold text-xs flex items-center">
+                        ★ {{ item.rating }}
+                    </div>
+                </div>
+                <div class="p-3">
+                    <h4 class="font-medium text-sm text-slate-100 truncate group-hover:text-indigo-400 transition-colors">{{ item.title }}</h4>
+                    <p class="text-xs text-slate-400 mt-1">Top Rated TV</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Slider functionality
+    document.addEventListener('DOMContentLoaded', () => {
+        const slides = document.querySelectorAll('#slider-track .slide');
+        const dots = document.querySelectorAll('.slider-dot');
+        const prevBtn = document.getElementById('slider-prev');
+        const nextBtn = document.getElementById('slider-next');
+        let currentIndex = 0;
+        let slideInterval;
+
+        function showSlide(index) {
+            slides.forEach((slide, i) => {
+                if (i === index) {
+                    slide.classList.remove('opacity-0', 'pointer-events-none');
+                    slide.classList.add('opacity-100');
+                } else {
+                    slide.classList.remove('opacity-100');
+                    slide.classList.add('opacity-0', 'pointer-events-none');
+                }
+            });
+
+            dots.forEach((dot, i) => {
+                if (i === index) {
+                    dot.classList.remove('bg-slate-600');
+                    dot.classList.add('bg-indigo-500');
+                } else {
+                    dot.classList.remove('bg-indigo-500');
+                    dot.classList.add('bg-slate-600');
+                }
+            });
+            currentIndex = index;
+        }
+
+        function nextSlide() {
+            const next = (currentIndex + 1) % slides.length;
+            showSlide(next);
+        }
+
+        function prevSlide() {
+            const prev = (currentIndex - 1 + slides.length) % slides.length;
+            showSlide(prev);
+        }
+
+        if (nextBtn && prevBtn && slides.length > 0) {
+            nextBtn.addEventListener('click', () => {
+                clearInterval(slideInterval);
+                nextSlide();
+                startAutoplay();
+            });
+
+            prevBtn.addEventListener('click', () => {
+                clearInterval(slideInterval);
+                prevSlide();
+                startAutoplay();
+            });
+
+            dots.forEach((dot) => {
+                dot.addEventListener('click', (e) => {
+                    clearInterval(slideInterval);
+                    const idx = parseInt(e.target.getAttribute('data-index'), 10);
+                    showSlide(idx);
+                    startAutoplay();
+                });
+            });
+
+            function startAutoplay() {
+                slideInterval = setInterval(nextSlide, 6000);
+            }
+
+            startAutoplay();
+        }
+    });
+</script>
+{% endblock %}

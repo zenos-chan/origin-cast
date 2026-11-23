@@ -1,0 +1,43 @@
+# Bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Python Virtual Environment
+bin/
+lib/
+include/
+pyvenv.cfg
+.venv/
+venv/
+env/
+ENV/
+
+# Media Libraries (repository starts clean with 0 movies and tv shows)
+movies/*
+!movies/.gitkeep
+tv/*
+!tv/.gitkeep
+
+# Databases & local cache files
+cinemagoer.db
+*.db
+*.sqlite3
+.metadata_cache.json
+downloader/downloads.json
+*.part
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE, OS, and tool artifacts
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+.gemini/

@@ -1,0 +1,159 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Library Scanner{% endblock %}
+{% block page_title %}Media Library Scanner{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header Scanner Status Box -->
+    <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+                <div class="flex items-center space-x-2.5">
+                    <span class="relative flex h-3 w-3">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    <h2 class="text-xl font-bold text-white tracking-tight">Active Media Scanner</h2>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">
+                    Scans disk for video formats (.mp4, .mkv, .avi, .webm), cleans titles, parses seasons, and syncs online metadata.
+                </p>
+            </div>
+            
+            <button id="full-scan-trigger-btn" onclick="startFullScan()" 
+                    class="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-600/30 flex-shrink-0">
+                <svg id="scan-btn-spinner" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                <span id="scan-btn-label">Run Full Library Scan</span>
+            </button>
+        </div>
+
+        <!-- Scan Progress & Feedback Bar -->
+        <div id="scan-status-alert" class="hidden p-4 rounded-xl border text-sm transition-all"></div>
+    </div>
+
+    <!-- Monitored Paths Card -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        
+        <!-- Movies Directory -->
+        <div class="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-3">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center space-x-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+                    <span>Movies Target Path</span>
+                </span>
+                <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300">
+                {{ movies_dir_path }}
+            </div>
+            <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+                <span>Items indexed: <strong class="text-white">{{ movies_count }}</strong></span>
+                <span>Supported: MP4, MKV, AVI, MOV</span>
+            </div>
+        </div>
+
+        <!-- TV Directory -->
+        <div class="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-3">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center space-x-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    <span>TV Shows Target Path</span>
+                </span>
+                <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300">
+                {{ tv_dir_path }}
+            </div>
+            <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+                <span>Series indexed: <strong class="text-white">{{ tv_count }}</strong></span>
+                <span>Recursive Season Parser</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Live Scanner Console Output -->
+    <div class="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl overflow-hidden">
+        <div class="p-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
+                <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
+                <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+                <span class="text-xs font-mono font-semibold text-slate-400 ml-2">scanner-diagnostic.log</span>
+            </div>
+            <button onclick="clearConsole()" class="text-xs text-slate-400 hover:text-white transition-colors">Clear Console</button>
+        </div>
+        <div id="console-output" class="p-4 bg-slate-950 font-mono text-xs text-slate-300 space-y-1.5 h-64 overflow-y-auto">
+            <div class="text-slate-500">[SYSTEM READY] Scanner initialized.</div>
+            <div class="text-slate-400">[CONFIG] Movies Target Directory: {{ movies_dir_path }}</div>
+            <div class="text-slate-400">[CONFIG] TV Target Directory: {{ tv_dir_path }}</div>
+            <div class="text-slate-400">[CONFIG] Cache File: {{ cache_file_path }} ({{ cache_file_size|filesize }})</div>
+            <div class="text-emerald-400">[READY] {{ movies_count }} movies and {{ tv_count }} series currently loaded in cache memory.</div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    function logMessage(text, color = 'text-slate-300') {
+        const consoleEl = document.getElementById('console-output');
+        const line = document.createElement('div');
+        line.className = color;
+        const now = new Date().toLocaleTimeString();
+        line.textContent = `[${now}] ${text}`;
+        consoleEl.appendChild(line);
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    function clearConsole() {
+        document.getElementById('console-output').innerHTML = '<div class="text-slate-500">[CONSOLE CLEARED] Ready.</div>';
+    }
+
+    function startFullScan() {
+        const btn = document.getElementById('full-scan-trigger-btn');
+        const spinner = document.getElementById('scan-btn-spinner');
+        const label = document.getElementById('scan-btn-label');
+        const alertBox = document.getElementById('scan-status-alert');
+
+        btn.disabled = true;
+        spinner.classList.add('animate-spin');
+        label.textContent = 'Scanning in progress...';
+
+        logMessage('Triggering media engine filesystem scanner...', 'text-indigo-400');
+        logMessage('Traversing movie folders and inspecting video headers...', 'text-slate-400');
+
+        fetch('/api/admin/scan', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                spinner.classList.remove('animate-spin');
+                label.textContent = 'Scan Completed!';
+                
+                logMessage(`Scan completed successfully!`, 'text-emerald-400');
+                logMessage(`Movies indexed: ${data.movies_count}`, 'text-emerald-300');
+                logMessage(`TV shows indexed: ${data.tv_count}`, 'text-emerald-300');
+                logMessage(`Metadata cache synchronized and persisted to disk.`, 'text-indigo-300');
+
+                alertBox.className = 'p-4 rounded-xl border text-sm transition-all bg-emerald-950/40 border-emerald-800 text-emerald-200 block';
+                alertBox.innerHTML = `✓ Scan complete! Indexed <strong>${data.movies_count} movies</strong> and <strong>${data.tv_count} TV shows</strong>. Refreshing view...`;
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1200);
+            })
+            .catch(err => {
+                console.error(err);
+                spinner.classList.remove('animate-spin');
+                label.textContent = 'Scan Failed';
+                logMessage(`Error during scanning: ${err.message}`, 'text-rose-400');
+                
+                alertBox.className = 'p-4 rounded-xl border text-sm transition-all bg-rose-950/40 border-rose-800 text-rose-200 block';
+                alertBox.innerHTML = `✗ Scan failed: ${err.message}`;
+                btn.disabled = false;
+            });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Movies Library{% endblock %}
+{% block page_title %}Movies Catalog{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Actions & Search Bar -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900 border border-slate-800">
+        <div class="relative flex-1 max-w-md">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+            <input type="text" id="movie-search" placeholder="Search by title, genre, or year..." 
+                   class="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+        </div>
+        <div class="flex items-center space-x-3 text-xs text-slate-400">
+            <span class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 font-medium">
+                Total Movies: <strong class="text-white">{{ movies|length }}</strong>
+            </span>
+            <button onclick="triggerQuickScan()" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-colors flex items-center space-x-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span>Rescan Folder</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Movies Grid -->
+    <div id="movies-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
+        {% for movie in movies %}
+        <div class="movie-card group rounded-2xl bg-slate-900 border border-slate-800/80 overflow-hidden hover:border-slate-700 transition-all shadow-xl flex flex-col justify-between"
+             data-title="{{ movie.title|lower }}" 
+             data-year="{{ movie.year }}" 
+             data-genres="{{ (movie.genres|join(' ') if movie.genres is iterable and movie.genres is not string else movie.genres)|lower }}">
+            
+            <div>
+                <!-- Poster Image Container -->
+                <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-950">
+                    <img src="{{ movie.poster or movie.img }}" alt="{{ movie.title }}" 
+                         loading="lazy"
+                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                    <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-80"></div>
+                    
+                    <!-- Rating Badge -->
+                    <div class="absolute top-3 right-3 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md border border-slate-700 text-amber-400 font-bold text-xs flex items-center space-x-1 shadow-lg">
+                        <span>★</span>
+                        <span>{{ movie.rating or 'N/A' }}</span>
+                    </div>
+
+                    <!-- Year Badge -->
+                    <div class="absolute top-3 left-3 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md border border-slate-700 text-slate-300 font-semibold text-xs shadow-lg">
+                        {{ movie.year or '2024' }}
+                    </div>
+
+                    <div class="absolute bottom-3 left-3 right-3">
+                        <h3 class="text-base font-extrabold text-white tracking-tight leading-snug drop-shadow-md">{{ movie.title }}</h3>
+                        {% if movie.duration %}
+                        <p class="text-xs text-slate-300 mt-0.5 font-medium">{{ movie.duration }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Card Details Body -->
+                <div class="p-4 space-y-3">
+                    <!-- Genres -->
+                    <div class="flex flex-wrap gap-1.5">
+                        {% if movie.genres is iterable and movie.genres is not string %}
+                            {% for genre in movie.genres[:3] %}
+                            <span class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-800/80 text-indigo-300 border border-slate-700/60">{{ genre }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-800/80 text-indigo-300 border border-slate-700/60">{{ movie.genres }}</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Overview snippet -->
+                    <p class="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                        {{ movie.overview or 'No summary available.' }}
+                    </p>
+
+                    <!-- Technical File Specs -->
+                    <div class="pt-2 border-t border-slate-800/80 space-y-1 text-[11px] font-mono text-slate-400">
+                        <div class="flex justify-between">
+                            <span class="text-slate-500">File Size:</span>
+                            <span class="text-slate-300">{{ movie.file_size|filesize }}</span>
+                        </div>
+                        <div class="truncate" title="{{ movie.file_path }}">
+                            <span class="text-slate-500">File:</span>
+                            <span class="text-slate-300">{{ movie.file_path|default('N/A') }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Bottom Bar -->
+            <div class="p-4 pt-0">
+                <a href="/" target="_blank" class="w-full flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors border border-slate-700">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    <span>Play in Web Player</span>
+                </a>
+            </div>
+
+        </div>
+        {% else %}
+        <div class="col-span-full py-16 text-center text-slate-500">
+            <svg class="w-12 h-12 mx-auto text-slate-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+            <p class="text-base font-semibold text-slate-400">No movies found in your directory</p>
+            <p class="text-xs text-slate-500 mt-1">Make sure you have media files in your movie directory and trigger a rescan.</p>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+
+<!-- Client-side Search Filter -->
+<script>
+    const searchInput = document.getElementById('movie-search');
+    const cards = document.querySelectorAll('.movie-card');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            cards.forEach(card => {
+                const title = card.getAttribute('data-title') || '';
+                const year = card.getAttribute('data-year') || '';
+                const genres = card.getAttribute('data-genres') || '';
+                if (title.includes(query) || year.includes(query) || genres.includes(query)) {
+                    card.classList.remove('hidden');
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+        });
+    }
+</script>
+{% endblock %}

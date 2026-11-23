@@ -1,0 +1,337 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Overview Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Welcome / Header Banner -->
+    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-900/60 via-slate-900 to-slate-900 border border-indigo-500/20 p-6 sm:p-8 shadow-xl">
+        <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="space-y-1.5">
+                <div class="flex items-center space-x-2">
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 tracking-wide uppercase">OriginCast Core</span>
+                    <span class="text-xs text-slate-400">Host: <span class="font-mono text-slate-300">{{ server_host }}:{{ server_port }}</span></span>
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                    Welcome back, <span class="text-indigo-400 capitalize">{{ session.get('admin_user', 'admin') }}</span> 👋
+                </h2>
+                <p class="text-sm text-slate-300 max-w-2xl leading-relaxed">
+                    Media streaming engine is running. Monitor your indexed movies, television series, cache integrity, and trigger real-time filesystem scans.
+                </p>
+            </div>
+            <div class="flex items-center space-x-3 flex-shrink-0">
+                <button onclick="triggerQuickScan()" class="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-lg shadow-indigo-600/30">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    <span>Rescan Library</span>
+                </button>
+                <a href="/" target="_blank" class="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-sm transition-colors">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                    <span>Public Catalog</span>
+                </a>
+            </div>
+        </div>
+        <!-- Ambient decorative blur -->
+        <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
+    </div>
+
+    <!-- Quick Stats Cards (4 Column Grid) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        
+        <!-- Total Movies -->
+        <a href="{{ url_for('admin_movies') }}" class="group block p-5 rounded-2xl bg-slate-900 border border-slate-800/80 hover:border-indigo-500/40 hover:bg-slate-900/80 transition-all shadow-lg">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-300">Total Movies</span>
+                <div class="p-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 group-hover:bg-indigo-600/20 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4 flex items-baseline justify-between">
+                <span class="text-3xl font-extrabold text-white tracking-tight">{{ movies_count }}</span>
+                <span class="text-xs text-indigo-400 font-medium group-hover:underline">Manage &rarr;</span>
+            </div>
+            <p class="mt-1 text-xs text-slate-400">Folder: <span class="font-mono text-slate-300">{{ movies_dir_name }}</span></p>
+        </a>
+
+        <!-- TV Shows -->
+        <a href="{{ url_for('admin_tv') }}" class="group block p-5 rounded-2xl bg-slate-900 border border-slate-800/80 hover:border-emerald-500/40 hover:bg-slate-900/80 transition-all shadow-lg">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-300">TV Series</span>
+                <div class="p-2.5 rounded-xl bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 group-hover:bg-emerald-600/20 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4 flex items-baseline justify-between">
+                <span class="text-3xl font-extrabold text-white tracking-tight">{{ tv_count }}</span>
+                <span class="text-xs text-emerald-400 font-medium group-hover:underline">Manage &rarr;</span>
+            </div>
+            <p class="mt-1 text-xs text-slate-400">{{ total_episodes }} Indexed Episodes</p>
+        </a>
+
+        <!-- Media Storage Size -->
+        <div class="p-5 rounded-2xl bg-slate-900 border border-slate-800/80 shadow-lg">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Library Storage</span>
+                <div class="p-2.5 rounded-xl bg-amber-600/10 text-amber-400 border border-amber-500/20">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4 flex items-baseline justify-between">
+                <span class="text-3xl font-extrabold text-white tracking-tight">{{ total_storage|filesize }}</span>
+                <span class="text-xs text-slate-400 font-medium">{{ total_files }} media files</span>
+            </div>
+            <p class="mt-1 text-xs text-slate-400">Across Movies & TV dirs</p>
+        </div>
+
+        <!-- Metadata Cache Status -->
+        <a href="{{ url_for('admin_scanner') }}" class="group block p-5 rounded-2xl bg-slate-900 border border-slate-800/80 hover:border-purple-500/40 hover:bg-slate-900/80 transition-all shadow-lg">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-300">Metadata Cache</span>
+                <div class="p-2.5 rounded-xl bg-purple-600/10 text-purple-400 border border-purple-500/20 group-hover:bg-purple-600/20 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4 flex items-baseline justify-between">
+                <span class="text-3xl font-extrabold text-white tracking-tight">{{ cache_entries_count }}</span>
+                <span class="text-xs text-purple-400 font-medium group-hover:underline">Scanner &rarr;</span>
+            </div>
+            <p class="mt-1 text-xs text-emerald-400 flex items-center">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5"></span>
+                Auto-fetch Online Active
+            </p>
+        </a>
+
+    </div>
+
+    <!-- Main Content Split: Recent Library & System Diagnostics -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left 2 Cols: Scanned Movies Overview Table -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <!-- Movies Table Card -->
+            <div class="rounded-2xl bg-slate-900 border border-slate-800/80 shadow-xl overflow-hidden">
+                <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+                    <div class="flex items-center space-x-2.5">
+                        <div class="p-1.5 rounded-lg bg-indigo-600/20 text-indigo-400">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-base font-bold text-white">Indexed Movies</h3>
+                        <span class="px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-800 text-slate-300">{{ movies|length }}</span>
+                    </div>
+                    <a href="{{ url_for('admin_movies') }}" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
+                        View All Movies &rarr;
+                    </a>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-950/40">
+                                <th class="py-3 px-4">Poster & Title</th>
+                                <th class="py-3 px-4">Year</th>
+                                <th class="py-3 px-4">Rating</th>
+                                <th class="py-3 px-4">Size</th>
+                                <th class="py-3 px-4">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/60 text-sm">
+                            {% for movie in movies[:5] %}
+                            <tr class="hover:bg-slate-800/40 transition-colors">
+                                <td class="py-3 px-4">
+                                    <div class="flex items-center space-x-3">
+                                        <img src="{{ movie.poster or movie.img }}" alt="{{ movie.title }}" class="w-10 h-14 object-cover rounded-lg border border-slate-700/60 shadow-sm flex-shrink-0 bg-slate-800">
+                                        <div class="min-w-0">
+                                            <p class="font-semibold text-white truncate max-w-xs">{{ movie.title }}</p>
+                                            <p class="text-xs text-slate-400 truncate max-w-xs font-mono">{{ movie.file_path|default('N/A') }}</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-4 text-slate-300 text-xs font-medium">{{ movie.year or 'N/A' }}</td>
+                                <td class="py-3 px-4">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                        ★ {{ movie.rating or 'N/A' }}
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4 text-xs text-slate-400 font-mono">{{ movie.file_size|filesize }}</td>
+                                <td class="py-3 px-4">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                        ● Ready
+                                    </span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="py-8 text-center text-slate-500 text-sm">
+                                    No movies found in {{ movies_dir_name }}. Click Rescan Library to detect media.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TV Shows Card -->
+            <div class="rounded-2xl bg-slate-900 border border-slate-800/80 shadow-xl overflow-hidden">
+                <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+                    <div class="flex items-center space-x-2.5">
+                        <div class="p-1.5 rounded-lg bg-emerald-600/20 text-emerald-400">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-base font-bold text-white">Indexed TV Shows</h3>
+                        <span class="px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-800 text-slate-300">{{ tv_shows|length }}</span>
+                    </div>
+                    <a href="{{ url_for('admin_tv') }}" class="text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">
+                        View All TV &rarr;
+                    </a>
+                </div>
+
+                <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {% for show in tv_shows[:4] %}
+                    <div class="flex space-x-3.5 p-3 rounded-xl bg-slate-950/50 border border-slate-800/80 hover:border-slate-700 transition-colors">
+                        <img src="{{ show.poster or show.img }}" alt="{{ show.title }}" class="w-14 h-20 object-cover rounded-lg border border-slate-800 shadow-sm flex-shrink-0 bg-slate-800">
+                        <div class="min-w-0 flex-1 flex flex-col justify-between">
+                            <div>
+                                <h4 class="font-bold text-white text-sm truncate">{{ show.title }}</h4>
+                                <p class="text-xs text-slate-400 mt-0.5">{{ show.year }} • ★ {{ show.rating }}</p>
+                            </div>
+                            <div class="flex items-center space-x-2 text-[11px] text-slate-400">
+                                <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">{{ show.seasons_count }} {{ 'Season' if show.seasons_count == 1 else 'Seasons' }}</span>
+                                <span>{{ show.total_episodes }} Episodes</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="col-span-2 py-6 text-center text-slate-500 text-sm">
+                        No TV shows indexed.
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right 1 Col: System Environment & Engine Diagnostics -->
+        <div class="space-y-6">
+
+            <!-- System Diagnostic Card -->
+            <div class="rounded-2xl bg-slate-900 border border-slate-800/80 p-5 shadow-xl space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                        </svg>
+                        <span>Engine Diagnostics</span>
+                    </h3>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        Operational
+                    </span>
+                </div>
+
+                <div class="space-y-3 text-xs">
+                    <div>
+                        <span class="text-slate-400 block mb-1">Movies Directory</span>
+                        <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300">
+                            <span class="truncate">{{ movies_dir_path }}</span>
+                            <span class="text-emerald-400 flex-shrink-0 ml-2">✓ Verified</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <span class="text-slate-400 block mb-1">TV Shows Directory</span>
+                        <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300">
+                            <span class="truncate">{{ tv_dir_path }}</span>
+                            <span class="text-emerald-400 flex-shrink-0 ml-2">✓ Verified</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <span class="text-slate-400 block mb-1">Metadata Cache Store</span>
+                        <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300">
+                            <span class="truncate">{{ cache_file_path }}</span>
+                            <span class="text-slate-400 flex-shrink-0 ml-2">{{ cache_file_size|filesize }}</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <span class="text-slate-400 block mb-1">Online Metadata Providers</span>
+                        <div class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 flex items-center justify-between">
+                            <span>TVMaze API + Curated DB</span>
+                            <span class="text-emerald-400 font-semibold">Enabled</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-3 border-t border-slate-800">
+                    <a href="{{ url_for('admin_scanner') }}" class="w-full flex items-center justify-center py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors">
+                        Open Scanner Control Center
+                    </a>
+                </div>
+            </div>
+
+            <!-- Server Runtime Info -->
+            <div class="rounded-2xl bg-slate-900 border border-slate-800/80 p-5 shadow-xl space-y-3">
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span>Server Info</span>
+                </h3>
+
+                <dl class="space-y-2 text-xs">
+                    <div class="flex justify-between py-1 border-b border-slate-800/60">
+                        <dt class="text-slate-400">Framework</dt>
+                        <dd class="text-white font-mono">Flask {{ flask_version }}</dd>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/60">
+                        <dt class="text-slate-400">Python</dt>
+                        <dd class="text-white font-mono">{{ python_version }}</dd>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/60">
+                        <dt class="text-slate-400">Platform</dt>
+                        <dd class="text-white font-mono">{{ os_platform }}</dd>
+                    </div>
+                    <div class="flex justify-between py-1">
+                        <dt class="text-slate-400">Admin Account</dt>
+                        <dd class="text-indigo-400 font-semibold font-mono">{{ session.get('admin_user', 'admin') }}</dd>
+                    </div>
+                </dl>
+            </div>
+
+            <!-- Default Credentials Security Reminder -->
+            <div class="p-4 rounded-2xl bg-indigo-950/30 border border-indigo-800/40 text-xs text-indigo-300 space-y-2">
+                <div class="flex items-center space-x-2 font-semibold text-indigo-200">
+                    <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    <span>Admin Authentication</span>
+                </div>
+                <p class="text-slate-400 leading-relaxed">
+                    Signed in as default superuser (<span class="font-mono text-indigo-300">admin</span> / <span class="font-mono text-indigo-300">admin123</span>). You can configure environment variables <code class="text-indigo-300">ADMIN_USER</code> and <code class="text-indigo-300">ADMIN_PASS</code> in production.
+                </p>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,517 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Downloads Manager{% endblock %}
+{% block page_title %}Media Downloader{% endblock %}
+
+{% block content %}
+<div class="space-y-8 max-w-7xl">
+
+    <!-- Top Stats & Action Banner -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 border border-slate-800 shadow-xl">
+        <div class="space-y-1">
+            <div class="flex items-center space-x-2.5">
+                <div class="p-1.5 rounded-lg bg-indigo-600/20 text-indigo-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-white tracking-tight">High-Speed Media Downloader</h2>
+            </div>
+            <p class="text-xs text-slate-400 max-w-2xl">
+                Background segmented multi-threaded stream engine. Automatically files movies into <code class="text-indigo-300">movies/</code> and TV series into <code class="text-indigo-300">tv/</code> maintaining OriginCast directory structures.
+            </p>
+        </div>
+
+        <button onclick="openManualDownloadModal()" class="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-lg shadow-indigo-600/30 flex-shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            <span>Add Direct URL</span>
+        </button>
+    </div>
+
+    <!-- Live Metric Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 shadow-md">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Active Tasks</span>
+            <div class="mt-2 flex items-baseline justify-between">
+                <span id="metric-active-count" class="text-2xl font-black text-white">0</span>
+                <span class="text-xs text-indigo-400 font-medium">In Queue</span>
+            </div>
+        </div>
+
+        <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 shadow-md">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Total Bandwidth</span>
+            <div class="mt-2 flex items-baseline justify-between">
+                <span id="metric-total-speed" class="text-2xl font-black text-emerald-400">0 KB/s</span>
+                <span class="text-xs text-emerald-500 font-medium">Aggregate Speed</span>
+            </div>
+        </div>
+
+        <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 shadow-md">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Completed Files</span>
+            <div class="mt-2 flex items-baseline justify-between">
+                <span id="metric-completed-count" class="text-2xl font-black text-white">{{ completed|length }}</span>
+                <span class="text-xs text-slate-400 font-medium">In Library</span>
+            </div>
+        </div>
+
+        <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 shadow-md">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Target Folder</span>
+            <div class="mt-2 flex items-baseline justify-between truncate">
+                <span class="text-sm font-bold text-white font-mono truncate" title="{{ movies_dir_path }}">{{ movies_dir_path }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Downloads Section -->
+    <div class="space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-2">
+                <span class="relative flex h-2 w-2">
+                    <span id="active-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                </span>
+                <span>Active Downloading Tasks</span>
+            </h3>
+            <span id="auto-refresh-pill" class="text-[11px] text-slate-500 font-mono">Live Sync Active (1s)</span>
+        </div>
+
+        <!-- Active Tasks Container -->
+        <div id="active-tasks-list" class="space-y-4">
+            <!-- Dynamically populated or empty state -->
+            <div id="active-empty-state" class="p-10 rounded-2xl bg-slate-900 border border-slate-800 text-center text-slate-500 space-y-2">
+                <svg class="w-10 h-10 mx-auto text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                </svg>
+                <p class="text-sm font-medium text-slate-400">No active downloads running</p>
+                <p class="text-xs text-slate-500">Go to <a href="{{ url_for('admin_extensions') }}" class="text-indigo-400 hover:underline">Extensions</a> to scrape movie links or click "Add Direct URL" above.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Completed Downloads Section -->
+    <div class="space-y-4 pt-4 border-t border-slate-800">
+        <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-2">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <span>Completed Downloads History</span>
+            </h3>
+            <button onclick="clearCompletedHistory()" class="text-xs text-slate-500 hover:text-slate-300 transition-colors">Clear History</button>
+        </div>
+
+        <div id="completed-tasks-list" class="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden shadow-xl">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-950/60">
+                            <th class="py-3 px-4">Title & Quality</th>
+                            <th class="py-3 px-4">Size</th>
+                            <th class="py-3 px-4">Destination File</th>
+                            <th class="py-3 px-4">Status</th>
+                            <th class="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="completed-table-body" class="divide-y divide-slate-800/60 text-sm">
+                        {% for item in completed %}
+                        <tr class="hover:bg-slate-800/40 transition-colors" id="completed-row-{{ item.id }}">
+                            <td class="py-3 px-4">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-8 h-11 rounded bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700">
+                                        {% if item.poster %}
+                                        <img src="{{ item.poster }}" alt="{{ item.title }}" class="w-full h-full object-cover">
+                                        {% else %}
+                                        <div class="w-full h-full flex items-center justify-center text-slate-500 text-xs">🎬</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="font-bold text-white text-xs truncate max-w-xs">{{ item.title }}</p>
+                                        <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase mt-0.5">{{ item.quality }}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="py-3 px-4 text-xs font-mono text-slate-300">{{ item.total_size_formatted }}</td>
+                            <td class="py-3 px-4 text-xs font-mono text-slate-400 truncate max-w-sm" title="{{ item.target_file }}">{{ item.target_file }}</td>
+                            <td class="py-3 px-4">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                    ✓ Downloaded
+                                </span>
+                            </td>
+                            <td class="py-3 px-4 text-right">
+                                <button onclick="deleteDownloadTask('{{ item.id }}')" title="Delete Record & File" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr id="completed-empty-row">
+                            <td colspan="5" class="py-8 text-center text-slate-500 text-xs">No completed downloads yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Add Manual Direct Download -->
+<div id="manual-download-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md hidden transition-opacity">
+    <div class="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-5">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div class="flex items-center space-x-2.5">
+                <div class="p-1.5 rounded-lg bg-indigo-600/20 text-indigo-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                </div>
+                <h3 class="text-lg font-bold text-white">Add Download Task</h3>
+            </div>
+            <button onclick="closeManualDownloadModal()" class="p-1 text-slate-400 hover:text-white rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <form id="manual-download-form" onsubmit="submitManualDownload(event)" class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Direct Download URL</label>
+                <input type="url" id="manual-url" required placeholder="https://cdn.example.com/movie.mp4" 
+                       class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Title (e.g. Inception 2010)</label>
+                    <input type="text" id="manual-title" required placeholder="Inception (2010)" 
+                           class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Category</label>
+                    <select id="manual-type" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="movie">Movie (movies/)</option>
+                        <option value="tv">TV Series (tv/)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Quality / Resolution</label>
+                    <select id="manual-quality" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="1080p">1080p Full HD</option>
+                        <option value="720p">720p HD</option>
+                        <option value="4K">4K 2160p UHD</option>
+                        <option value="480p">480p Standard</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Size Hint</label>
+                    <input type="text" id="manual-size" placeholder="1.2 GB" 
+                           class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+
+            <div class="pt-2 flex items-center justify-end space-x-3">
+                <button type="button" onclick="closeManualDownloadModal()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-600/30">
+                    Queue Download
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
+
+<script>
+    function openManualDownloadModal() {
+        document.getElementById('manual-download-modal').classList.remove('hidden');
+    }
+
+    function closeManualDownloadModal() {
+        document.getElementById('manual-download-modal').classList.add('hidden');
+    }
+
+    function submitManualDownload(e) {
+        e.preventDefault();
+        const payload = {
+            url: document.getElementById('manual-url').value.trim(),
+            title: document.getElementById('manual-title').value.trim(),
+            type: document.getElementById('manual-type').value,
+            quality: document.getElementById('manual-quality').value,
+            size: document.getElementById('manual-size').value.trim()
+        };
+
+        fetch('/api/admin/downloads/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            closeManualDownloadModal();
+            fetchDownloadStatus();
+        })
+        .catch(err => alert('Failed to start download: ' + err.message));
+    }
+
+    function pauseTask(taskId) {
+        fetch(`/api/admin/downloads/${taskId}/pause`, { method: 'POST' })
+            .then(res => res.json())
+            .then(() => fetchDownloadStatus());
+    }
+
+    function resumeTask(taskId) {
+        fetch(`/api/admin/downloads/${taskId}/resume`, { method: 'POST' })
+            .then(res => res.json())
+            .then(() => fetchDownloadStatus());
+    }
+
+    function retryTask(taskId) {
+        fetch(`/api/admin/downloads/${taskId}/retry`, { method: 'POST' })
+            .then(res => res.json())
+            .then(() => fetchDownloadStatus());
+    }
+
+    function deleteTask(taskId) {
+        if (!confirm('Are you sure you want to cancel and delete this download task?')) return;
+        fetch(`/api/admin/downloads/${taskId}`, { method: 'DELETE' })
+            .then(res => res.json())
+            .then(() => fetchDownloadStatus());
+    }
+
+    function deleteDownloadTask(taskId) {
+        if (!confirm('Delete this completed download record and file?')) return;
+        fetch(`/api/admin/downloads/${taskId}`, { method: 'DELETE' })
+            .then(res => res.json())
+            .then(() => {
+                const row = document.getElementById(`completed-row-${taskId}`);
+                if (row) row.remove();
+                fetchDownloadStatus();
+            });
+    }
+
+    function clearCompletedHistory() {
+        if (!confirm('Clear completed history list?')) return;
+        fetch('/api/admin/downloads/clear-completed', { method: 'POST' })
+            .then(res => res.json())
+            .then(() => fetchDownloadStatus());
+    }
+
+    // -------------------------------------------------------------------------
+    // Real-Time Polling Engine
+    // -------------------------------------------------------------------------
+    function fetchDownloadStatus() {
+        fetch('/api/admin/downloads')
+            .then(res => res.json())
+            .then(data => {
+                renderActiveTasks(data.active || []);
+                renderCompletedTasks(data.completed || []);
+                updateMetrics(data.active || [], data.completed || []);
+            })
+            .catch(err => console.error('Error syncing downloads:', err));
+    }
+
+    function updateMetrics(activeList, completedList) {
+        document.getElementById('metric-active-count').textContent = activeList.length;
+        document.getElementById('metric-completed-count').textContent = completedList.length;
+
+        let totalSpeed = 0;
+        activeList.forEach(t => {
+            if (t.status === 'downloading') {
+                totalSpeed += (t.speed || 0);
+            }
+        });
+
+        const speedEl = document.getElementById('metric-total-speed');
+        if (totalSpeed >= 1024 * 1024) {
+            speedEl.textContent = `${(totalSpeed / (1024 * 1024)).toFixed(1)} MB/s`;
+        } else if (totalSpeed >= 1024) {
+            speedEl.textContent = `${(totalSpeed / 1024).toFixed(1)} KB/s`;
+        } else {
+            speedEl.textContent = `${Math.round(totalSpeed)} B/s`;
+        }
+    }
+
+    function renderActiveTasks(tasks) {
+        const container = document.getElementById('active-tasks-list');
+
+        if (!tasks || tasks.length === 0) {
+            container.innerHTML = `
+                <div id="active-empty-state" class="p-10 rounded-2xl bg-slate-900 border border-slate-800 text-center text-slate-500 space-y-2">
+                    <svg class="w-10 h-10 mx-auto text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                    </svg>
+                    <p class="text-sm font-medium text-slate-400">No active downloads running</p>
+                    <p class="text-xs text-slate-500">Go to <a href="/admin/extensions" class="text-indigo-400 hover:underline">Extensions</a> to scrape movie links or click "Add Direct URL" above.</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        tasks.forEach(t => {
+            const isPaused = t.status === 'paused';
+            const isError = t.status === 'error';
+            const isQueued = t.status === 'queued';
+            const isResolving = t.status === 'resolving';
+
+            let statusColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+            let statusLabel = 'Downloading';
+            let barGradient = 'from-indigo-500 to-emerald-400';
+            let cardBorder = 'border-slate-800 hover:border-slate-700';
+
+            if (isPaused) {
+                statusColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                statusLabel = 'Paused';
+                barGradient = 'from-amber-600 to-amber-400';
+            } else if (isError) {
+                statusColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+                statusLabel = 'Failed';
+                barGradient = 'from-rose-600 to-rose-400';
+                cardBorder = 'border-rose-900/60 bg-rose-950/10';
+            } else if (isResolving) {
+                statusColor = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+                statusLabel = 'Connecting / Resolving Stream';
+                barGradient = 'from-indigo-600 to-indigo-400';
+            } else if (isQueued) {
+                statusColor = 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+                statusLabel = 'Queued';
+                barGradient = 'from-sky-500 to-indigo-500';
+            }
+
+            let actionButtons = '';
+            if (isPaused) {
+                actionButtons = `
+                    <button onclick="resumeTask('${t.id}')" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+                        <span>Resume</span>
+                    </button>
+                `;
+            } else if (isError) {
+                actionButtons = `
+                    <button onclick="retryTask('${t.id}')" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        <span>Retry</span>
+                    </button>
+                `;
+            } else if (!isQueued) {
+                actionButtons = `
+                    <button onclick="pauseTask('${t.id}')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span>Pause</span>
+                    </button>
+                `;
+            }
+
+            html += `
+                <div class="p-5 rounded-2xl bg-slate-900 border ${cardBorder} shadow-xl space-y-4 transition-all">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex items-center space-x-3.5 min-w-0">
+                            <div class="w-10 h-14 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-500 flex-shrink-0 overflow-hidden">
+                                ${t.poster ? `<img src="${t.poster}" class="w-full h-full object-cover">` : '<span class="text-sm">🎬</span>'}
+                            </div>
+                            <div class="min-w-0">
+                                <div class="flex items-center space-x-2">
+                                    <h4 class="font-bold text-white text-base truncate">${t.title}</h4>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase">${t.quality}</span>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${statusColor}">${statusLabel}</span>
+                                </div>
+                                <p class="text-xs text-slate-400 font-mono mt-0.5 truncate">${t.target_file}</p>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons: Pause/Resume/Retry, Delete -->
+                        <div class="flex items-center space-x-2 flex-shrink-0">
+                            ${actionButtons}
+                            <button onclick="deleteTask('${t.id}')" title="Cancel and Delete" class="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    ${isError && t.error_message ? `
+                        <div class="p-3 rounded-xl bg-rose-950/40 border border-rose-800/60 text-xs text-rose-300 flex items-start space-x-2.5">
+                            <svg class="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <div>
+                                <p class="font-semibold text-rose-200">Download Blocked or Gateway Inaccessible</p>
+                                <p class="text-[11px] text-rose-300/90 mt-0.5">${t.error_message}</p>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <!-- Progress Bar -->
+                    <div class="space-y-1.5">
+                        <div class="w-full h-2.5 rounded-full bg-slate-950 border border-slate-800 overflow-hidden relative">
+                            <div class="h-full bg-gradient-to-r ${barGradient} rounded-full transition-all duration-300" style="width: ${Math.max(1, t.progress)}%"></div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-slate-400 font-mono">
+                            <span>${t.downloaded_size_formatted} / ${t.total_size_formatted} (${t.progress}%)</span>
+                            <div class="flex items-center space-x-3">
+                                ${!isError && !isPaused ? `<span class="text-emerald-400 font-semibold">⚡ ${t.speed_formatted}</span>` : ''}
+                                ${!isError && !isPaused ? `<span>⏱ ${t.eta_formatted}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function renderCompletedTasks(completedList) {
+        const tbody = document.getElementById('completed-table-body');
+        if (!tbody) return;
+
+        if (!completedList || completedList.length === 0) {
+            tbody.innerHTML = `
+                <tr id="completed-empty-row">
+                    <td colspan="5" class="py-8 text-center text-slate-500 text-xs">No completed downloads yet.</td>
+                </tr>
+            `;
+            return;
+        }
+
+        let html = '';
+        completedList.forEach(item => {
+            html += `
+                <tr class="hover:bg-slate-800/40 transition-colors" id="completed-row-${item.id}">
+                    <td class="py-3 px-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-11 rounded bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700">
+                                ${item.poster ? `<img src="${item.poster}" alt="${item.title}" class="w-full h-full object-cover">` : '<div class="w-full h-full flex items-center justify-center text-slate-500 text-xs">🎬</div>'}
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-bold text-white text-xs truncate max-w-xs">${item.title}</p>
+                                <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase mt-0.5">${item.quality || '1080P'}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="py-3 px-4 text-xs font-mono text-slate-300">${item.total_size_formatted || 'Unknown'}</td>
+                    <td class="py-3 px-4 text-xs font-mono text-slate-400 truncate max-w-sm" title="${item.target_file}">${item.target_file}</td>
+                    <td class="py-3 px-4">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            ✓ Downloaded
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                        <button onclick="deleteDownloadTask('${item.id}')" title="Delete Record & File" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+    }
+
+    // Start Real-Time Polling every 1 second
+    setInterval(fetchDownloadStatus, 1000);
+    fetchDownloadStatus();
+</script>
+{% endblock %}
