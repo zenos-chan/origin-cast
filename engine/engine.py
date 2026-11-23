@@ -140,6 +140,15 @@ def clean_title(raw_name: str, strip_year: bool = True) -> str:
     return name
 
 
+def slugify(text: str) -> str:
+    """Converts a title or string into a clean, URL-safe kebab-case slug."""
+    text = (text or "").lower().strip()
+    # Replace non-alphanumeric characters with hyphens
+    text = re.sub(r'[^a-z0-9]+', '-', text)
+    # Collapse multiple hyphens and trim
+    return re.sub(r'-+', '-', text).strip('-')
+
+
 class Engine:
     """
     OriginCast Metadata Engine.
@@ -174,13 +183,39 @@ class Engine:
     # Cache Persistence
     # -------------------------------------------------------------------------
     def load_cache(self) -> None:
-        """Loads cached metadata from disk if available."""
+        """Loads cached metadata from disk and migrates old keys to clean kebab-case slugs."""
         if self.cache_file.exists():
             try:
                 with open(self.cache_file, "r", encoding="utf-8") as f:
                     self.cache = json.load(f)
             except Exception:
                 self.cache = {"movies": {}, "tv": {}}
+
+        # Migrate movie cache keys to clean slugs
+        norm_movies = {}
+        for k, m in self.cache.get("movies", {}).items():
+            year = m.get("year") or extract_year(m.get("title", "")) or ""
+            title = m.get("title") or k
+            slug = f"{slugify(title)}-{year}" if year else slugify(title)
+            slug = slug.strip('-')
+            m["slug"] = slug
+            m["id"] = slug
+            norm_movies[slug] = m
+        self.cache["movies"] = norm_movies
+
+        # Migrate TV cache keys to clean slugs (no 'tv_' prefix, no spaces)
+        norm_tv = {}
+        for k, t in self.cache.get("tv", {}).items():
+            year = t.get("year") or extract_year(t.get("title", "")) or ""
+            title = t.get("title") or k
+            if title.lower().startswith("tv_") or title.lower().startswith("tv-"):
+                title = title[3:]
+            slug = f"{slugify(title)}-{year}" if year else slugify(title)
+            slug = slug.strip('-')
+            t["slug"] = slug
+            t["id"] = slug
+            norm_tv[slug] = t
+        self.cache["tv"] = norm_tv
 
     def save_cache(self) -> None:
         """Persists metadata cache to disk."""
@@ -319,12 +354,16 @@ class Engine:
                 continue
 
             parsed_title = clean_title(raw_title)
-            cache_key = f"{parsed_title.lower()}_{year or 'unknown'}"
+            slug = f"{slugify(parsed_title)}-{year}" if year else slugify(parsed_title)
+            slug = slug.strip('-')
+            cache_key = slug
 
             # Check cache
             if cache_key in self.cache.get("movies", {}):
                 meta = self.cache["movies"][cache_key]
                 meta["file_path"] = str(movie_path)
+                meta["slug"] = slug
+                meta["id"] = slug
                 movies.append(meta)
                 continue
 
@@ -354,7 +393,8 @@ class Engine:
             )
 
             movie_record = {
-                "id": cache_key,
+                "id": slug,
+                "slug": slug,
                 "title": (online_meta and online_meta.get("title")) or (local_meta and local_meta.get("title")) or parsed_title,
                 "year": (online_meta and online_meta.get("year")) or (local_meta and local_meta.get("year")) or year or "2024",
                 "rating": (online_meta and online_meta.get("rating")) or (local_meta and local_meta.get("rating")) or curated.get("rating") or "8.0",
@@ -397,11 +437,16 @@ class Engine:
             raw_show_name = show_dir.name
             clean_show_title = clean_title(raw_show_name)
             year = extract_year(raw_show_name)
-            cache_key = f"tv_{clean_show_title.lower()}"
+            slug = f"{slugify(clean_show_title)}-{year}" if year else slugify(clean_show_title)
+            slug = slug.strip('-')
+            cache_key = slug
 
             # Check cache
             if cache_key in self.cache.get("tv", {}):
-                shows.append(self.cache["tv"][cache_key])
+                meta = self.cache["tv"][cache_key]
+                meta["slug"] = slug
+                meta["id"] = slug
+                shows.append(meta)
                 continue
 
             # Discover seasons and episodes
@@ -454,7 +499,8 @@ class Engine:
             )
 
             show_record = {
-                "id": cache_key,
+                "id": slug,
+                "slug": slug,
                 "title": (online_meta and online_meta.get("title")) or (local_meta and local_meta.get("title")) or clean_show_title,
                 "year": (online_meta and online_meta.get("year")) or (local_meta and local_meta.get("year")) or year or "2024",
                 "rating": (online_meta and online_meta.get("rating")) or (local_meta and local_meta.get("rating")) or curated.get("rating") or "8.5",

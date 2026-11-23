@@ -224,19 +224,37 @@ def tv():
     return render_template("homepage.html", **context)
 
 
-@app.route("/movie/<path:movie_id>")
-def movie_detail(movie_id):
-    """Movie player and detail page for viewing local video files."""
+def normalize_slug(text: str) -> str:
+    """Normalizes any text or path segment to a clean lowercase hyphenated slug."""
+    text = (text or "").lower().strip()
+    text = re.sub(r'[^a-z0-9]+', '-', text)
+    return re.sub(r'-+', '-', text).strip('-')
+
+
+@app.route("/movie/<path:movie_slug>")
+def movie_detail(movie_slug):
+    """Movie player and detail page for viewing local video files by clean slug."""
     if not media_engine.movies:
         media_engine.scan_movies()
-    decoded_id = urllib.parse.unquote(movie_id).strip().lower()
+    raw_query = urllib.parse.unquote(movie_slug).strip().lower()
+    norm_query = normalize_slug(raw_query)
+
     selected_movie = None
     for m in media_engine.movies:
-        m_id = str(m.get("id", "")).lower()
+        m_slug = str(m.get("slug") or m.get("id", "")).lower()
         m_title = str(m.get("title", "")).lower()
-        if decoded_id in (m_id, m_title) or decoded_id.replace("-", " ") in (m_id.replace("-", " "), m_title):
+        norm_title = normalize_slug(m_title)
+        if norm_query in (m_slug, norm_title, normalize_slug(m_slug)) or raw_query in (m_slug, m_title):
             selected_movie = m
             break
+
+    if not selected_movie:
+        for m in media_engine.movies:
+            m_slug = str(m.get("slug") or m.get("id", "")).lower()
+            if m_slug.startswith(norm_query) or norm_query.startswith(m_slug):
+                selected_movie = m
+                break
+
     if not selected_movie and media_engine.movies:
         selected_movie = media_engine.movies[0]
     if not selected_movie:
@@ -252,19 +270,32 @@ def movie_detail(movie_id):
     )
 
 
-@app.route("/tv/<path:tv_id>")
-def tv_detail(tv_id):
-    """TV series player and interactive episode browser page."""
+@app.route("/tv/<path:tv_slug>")
+def tv_detail(tv_slug):
+    """TV series player and interactive episode browser page by clean slug."""
     if not media_engine.tv_shows:
         media_engine.scan_tv()
-    decoded_id = urllib.parse.unquote(tv_id).strip().lower()
+    raw_query = urllib.parse.unquote(tv_slug).strip().lower()
+    if raw_query.startswith("tv_") or raw_query.startswith("tv-"):
+        raw_query = raw_query[3:]
+    norm_query = normalize_slug(raw_query)
+
     selected_show = None
     for t in media_engine.tv_shows:
-        t_id = str(t.get("id", "")).lower()
+        t_slug = str(t.get("slug") or t.get("id", "")).lower()
         t_title = str(t.get("title", "")).lower()
-        if decoded_id in (t_id, t_title) or decoded_id.replace("-", " ") in (t_id.replace("-", " "), t_title):
+        norm_title = normalize_slug(t_title)
+        if norm_query in (t_slug, norm_title, normalize_slug(t_slug)) or raw_query in (t_slug, t_title):
             selected_show = t
             break
+
+    if not selected_show:
+        for t in media_engine.tv_shows:
+            t_slug = str(t.get("slug") or t.get("id", "")).lower()
+            if t_slug.startswith(norm_query) or norm_query.startswith(t_slug):
+                selected_show = t
+                break
+
     if not selected_show and media_engine.tv_shows:
         selected_show = media_engine.tv_shows[0]
     if not selected_show:
