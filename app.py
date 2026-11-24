@@ -4,9 +4,9 @@ import platform
 import functools
 import argparse
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple, Iterator
 import urllib.parse
-from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash, send_file
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash
 import flask
 from engine import Engine
 from extensions import default_extension_manager
@@ -114,27 +114,109 @@ def srt_to_webvtt(srt_text: str) -> str:
     return "WEBVTT\n\n" + vtt.strip() + "\n"
 
 
+STREAM_CHUNK_SIZE = 64 * 1024           # 64 KB per yielded network chunk for fast TTFB on slow links
+STREAM_RANGE_WINDOW = 512 * 1024        # 512 KB max byte range per HTTP 206 response
+RANGE_HEADER_RE = re.compile(r"^bytes=(\d*)-(\d*)$", re.IGNORECASE)
+
+
+def resolve_media_path(filepath: str) -> Optional[Path]:
+    """Resolves a media or subtitle path strictly within configured movies or TV directories."""
+    if not filepath:
+        return None
+
+    decoded_path = urllib.parse.unquote(filepath)
+    allowed_roots = [
+        Path(media_engine.movies_dir).resolve(),
+        Path(media_engine.tv_dir).resolve(),
+    ]
+
+    candidates = [Path(decoded_path)]
+    if not candidates[0].is_absolute():
+        candidates.append(Path(".").resolve() / decoded_path)
+        for root in allowed_roots:
+            candidates.append(root / decoded_path)
+
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+        if resolved.is_file() and any(resolved.is_relative_to(root) for root in allowed_roots):
+            return resolved
+    return None
+
+
+def parse_range_header(range_header: str, file_size: int) -> Optional[Tuple[int, int]]:
+    """
+    Parses an HTTP Range header and returns a bounded (start, end) inclusive byte range.
+    Caps each response window to STREAM_RANGE_WINDOW so players stream in chunks rather
+    than downloading the entire file in a single response.
+    """
+    if file_size <= 0 or not range_header:
+        return None
+
+    # Handle single byte-range specifiers; if multiple ranges are sent, use the first
+    first_spec = range_header.split(",", 1)[0].strip()
+    match = RANGE_HEADER_RE.match(first_spec)
+    if not match:
+        return None
+
+    start_str, end_str = match.group(1), match.group(2)
+    if not start_str and not end_str:
+        return None
+
+    if not start_str:
+        # Suffix-byte-range-spec: bytes=-N (last N bytes)
+        suffix_len = int(end_str)
+        if suffix_len <= 0:
+            return None
+        start = max(0, file_size - suffix_len)
+        end = min(start + STREAM_RANGE_WINDOW - 1, file_size - 1)
+        return start, end
+
+    start = int(start_str)
+    if start >= file_size:
+        return None
+
+    if end_str:
+        req_end = int(end_str)
+        if start > req_end:
+            return None
+        end = min(req_end, start + STREAM_RANGE_WINDOW - 1, file_size - 1)
+    else:
+        end = min(start + STREAM_RANGE_WINDOW - 1, file_size - 1)
+
+    return start, end
+
+
+def stream_file_chunks(
+    file_path: Path,
+    start: int,
+    length: int,
+    chunk_size: int = STREAM_CHUNK_SIZE
+) -> Iterator[bytes]:
+    """Generator yielding bounded byte chunks from file_path starting at byte offset `start`."""
+    try:
+        with open(file_path, "rb") as f:
+            f.seek(start)
+            remaining = length
+            while remaining > 0:
+                data = f.read(min(chunk_size, remaining))
+                if not data:
+                    break
+                remaining -= len(data)
+                yield data
+    except (BrokenPipeError, ConnectionResetError, GeneratorExit):
+        return
+
+
 def find_subtitles_for_file(filepath: str) -> List[Dict[str, Any]]:
     """
     Finds subtitle files associated with a given video filepath.
     Looks in the same directory and common subdirectories ('subs', 'subtitles').
     """
-    if not filepath:
-        return []
-    target = Path(filepath)
-    if not target.is_absolute():
-        target = (Path(".").resolve() / filepath).resolve()
-    else:
-        target = target.resolve()
-
-    if not target.is_file():
-        for base in [Path(media_engine.movies_dir).resolve(), Path(media_engine.tv_dir).resolve()]:
-            c = (base / filepath).resolve()
-            if c.is_file():
-                target = c
-                break
-
-    if not target.parent.exists():
+    target = resolve_media_path(filepath)
+    if not target or not target.parent.exists():
         return []
 
     parent_dir = target.parent
@@ -325,27 +407,26 @@ def tv_detail(tv_slug):
     )
 
 
-@app.route("/stream/<path:filepath>")
+@app.route("/stream/<path:filepath>", methods=["GET", "HEAD", "OPTIONS"])
 def stream_video(filepath):
     """
-    Streams media video files supporting HTTP 206 Range requests for seeking.
-    Resolves video files stored within movies/ or tv/ directory structures.
+    Streams media video files over the network in bounded HTTP 206 byte-range chunks
+    via a streaming generator instead of direct file serving.
+    Optimized for large files and slow connections with small 64 KB chunks,
+    512 KB range windows, range caching, and CORS headers.
     """
-    decoded_path = urllib.parse.unquote(filepath)
-    target = Path(decoded_path)
-    if not target.is_absolute():
-        target = (Path(".").resolve() / decoded_path).resolve()
-    else:
-        target = target.resolve()
+    cors_headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers": "Range, Origin, Content-Type, Accept",
+        "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges, X-Stream-Mode, ETag"
+    }
 
-    if not target.is_file():
-        for base in [Path(media_engine.movies_dir).resolve(), Path(media_engine.tv_dir).resolve()]:
-            c = (base / decoded_path).resolve()
-            if c.is_file():
-                target = c
-                break
+    if request.method == "OPTIONS":
+        return flask.Response(status=204, headers=cors_headers)
 
-    if not target.is_file():
+    target = resolve_media_path(filepath)
+    if not target:
         return jsonify({"status": "error", "message": f"File '{filepath}' not found."}), 404
 
     ext = target.suffix.lower()
@@ -358,7 +439,71 @@ def stream_video(filepath):
         ".avi": "video/x-msvideo"
     }
     mimetype = mimetypes.get(ext, "video/mp4")
-    return send_file(target, mimetype=mimetype, conditional=True, as_attachment=False)
+    stat_info = target.stat()
+    file_size = stat_info.st_size
+    etag = f'"{file_size}-{int(stat_info.st_mtime)}"'
+
+    common_headers = {
+        **cors_headers,
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "private, max-age=3600",
+        "ETag": etag,
+        "X-Stream-Mode": "network-chunked"
+    }
+
+    range_header = request.headers.get("Range")
+    if range_header:
+        byte_range = parse_range_header(range_header, file_size)
+        if byte_range is None:
+            return flask.Response(
+                status=416,
+                headers={
+                    **cors_headers,
+                    "Content-Range": f"bytes */{file_size}",
+                    "Accept-Ranges": "bytes"
+                }
+            )
+
+        start, end = byte_range
+        chunk_length = end - start + 1
+        range_headers = {
+            **common_headers,
+            "Content-Range": f"bytes {start}-{end}/{file_size}"
+        }
+        if request.method == "HEAD":
+            resp = flask.Response(status=206, mimetype=mimetype, headers=range_headers)
+            resp.headers["Content-Length"] = str(chunk_length)
+            return resp
+
+        range_headers["Content-Length"] = str(chunk_length)
+        return flask.Response(
+            stream_file_chunks(target, start, chunk_length),
+            status=206,
+            mimetype=mimetype,
+            direct_passthrough=True,
+            headers=range_headers
+        )
+
+    if request.method == "HEAD":
+        resp = flask.Response(status=200, mimetype=mimetype, headers=common_headers)
+        resp.headers["Content-Length"] = str(file_size)
+        return resp
+
+    if file_size == 0:
+        return flask.Response(
+            b"",
+            status=200,
+            mimetype=mimetype,
+            headers={**common_headers, "Content-Length": "0"}
+        )
+
+    return flask.Response(
+        stream_file_chunks(target, 0, file_size),
+        status=200,
+        mimetype=mimetype,
+        direct_passthrough=True,
+        headers={**common_headers, "Content-Length": str(file_size)}
+    )
 
 
 @app.route("/subtitles/<path:filepath>")
@@ -367,21 +512,8 @@ def stream_subtitles(filepath):
     Streams local subtitle files as standard WebVTT.
     Converts .srt files on-the-fly to ensure native browser playback.
     """
-    decoded_path = urllib.parse.unquote(filepath)
-    target = Path(decoded_path)
-    if not target.is_absolute():
-        target = (Path(".").resolve() / decoded_path).resolve()
-    else:
-        target = target.resolve()
-
-    if not target.is_file():
-        for base in [Path(media_engine.movies_dir).resolve(), Path(media_engine.tv_dir).resolve()]:
-            c = (base / decoded_path).resolve()
-            if c.is_file():
-                target = c
-                break
-
-    if not target.is_file():
+    target = resolve_media_path(filepath)
+    if not target:
         return jsonify({"status": "error", "message": f"Subtitle '{filepath}' not found."}), 404
 
     try:
@@ -393,7 +525,11 @@ def stream_subtitles(filepath):
     if ext != ".vtt":
         content = srt_to_webvtt(content)
 
-    return flask.Response(content, mimetype="text/vtt; charset=utf-8")
+    return flask.Response(
+        content,
+        mimetype="text/vtt; charset=utf-8",
+        headers={"Access-Control-Allow-Origin": "*"}
+    )
 
 
 @app.route("/api/media/subtitles")
@@ -904,4 +1040,4 @@ if __name__ == "__main__":
     print(f"    Admin Portal:     http://{args.host}:{args.port}/admin")
     print(f"    Default Admin:    {ADMIN_USER} / {ADMIN_PASS}")
 
-    app.run(host=args.host, port=args.port, debug=args.debug)
+    app.run(host=args.host, port=args.port, debug=args.debug, threaded=True)

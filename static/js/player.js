@@ -170,7 +170,8 @@ window.OriginCastPlayer = {
             moreVideoAttr: {
                 playsinline: true,
                 'webkit-playsinline': true,
-                crossOrigin: 'anonymous'
+                crossOrigin: 'anonymous',
+                preload: 'auto'
             }
         };
 
@@ -229,8 +230,9 @@ window.OriginCastPlayer = {
                         </div>
                     </div>
                     <div class="flex items-center space-x-2 flex-shrink-0">
+                        <span id="oc-buffer-badge" class="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-900/80 text-slate-300 border border-slate-700/60 backdrop-blur-md shadow-sm">BUF 0.0s</span>
                         <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-600/90 text-white backdrop-blur-md shadow-sm">1080p FHD</span>
-                        <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-900/80 text-emerald-400 border border-slate-700/60 backdrop-blur-md shadow-sm">LOCAL STREAM</span>
+                        <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-900/80 text-emerald-400 border border-slate-700/60 backdrop-blur-md shadow-sm">NETWORK STREAM</span>
                     </div>
                 </div>
             `
@@ -501,18 +503,263 @@ window.OriginCastPlayer = {
                 input.click();
             }
         });
+
+        // Slow-Network Buffer Guard (pre-buffers before resuming after a stall)
+        art.setting.add({
+            name: 'slow-network-buffer-guard',
+            width: 240,
+            html: 'Slow-Net Buffer Guard',
+            tooltip: 'On (6s)',
+            switch: true,
+            onSwitch: function (item) {
+                const state = !item.switch;
+                window.OriginCastPlayer.bufferGuardEnabled = state;
+                art.notice.show = state ? 'Slow-Net Buffer Guard: ON (6s cushion)' : 'Slow-Net Buffer Guard: OFF';
+                return state;
+            }
+        });
+    },
+
+    bufferGuardEnabled: true,
+    bufferTargetSeconds: 6,
+
+    formatTimestamp(seconds) {
+        const s = Math.max(0, Math.floor(seconds || 0));
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const rem = s % 60;
+        if (h > 0) {
+            return `${h}:${String(m).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
+        }
+        return `${m}:${String(rem).padStart(2, '0')}`;
+    },
+
+    getBufferedAhead(video) {
+        if (!video || !video.buffered || video.buffered.length === 0) return 0;
+        const t = video.currentTime || 0;
+        for (let i = 0; i < video.buffered.length; i++) {
+            const start = video.buffered.start(i);
+            const end = video.buffered.end(i);
+            if (t >= start - 0.5 && t <= end) {
+                return Math.max(0, end - t);
+            }
+        }
+        return 0;
+    },
+
+    getResumeStorageKey(art) {
+        const rawSrc = (art && art.video && (art.video.getAttribute('src') || art.video.currentSrc)) || (art && art.option && art.option.url) || '';
+        if (!rawSrc || rawSrc === '#') return null;
+        try {
+            const u = new URL(rawSrc, window.location.origin);
+            return `oc_resume_${u.pathname}`;
+        } catch (e) {
+            return `oc_resume_${rawSrc}`;
+        }
     },
 
     setupEvents(art, opts) {
+        const self = this;
+        const video = art.video;
+        let lastKnownTime = 0;
+        let lastSavedAt = 0;
+        let lastRestoredSrc = '';
+        let guardPaused = false;
+        let userPaused = false;
+        let retryCount = 0;
+        let retryTimer = null;
+        let stallTimer = null;
+        const maxRetries = 5;
+
+        const updateBufferBadge = () => {
+            const badge = document.getElementById('oc-buffer-badge');
+            if (!badge || !video) return;
+            const ahead = self.getBufferedAhead(video);
+            const rounded = ahead.toFixed(1);
+            badge.textContent = `BUF ${rounded}s`;
+            if (ahead >= 6) {
+                badge.className = 'px-2 py-0.5 rounded text-[11px] font-mono bg-slate-900/80 text-emerald-400 border border-emerald-700/50 backdrop-blur-md shadow-sm';
+            } else if (ahead >= 1.5) {
+                badge.className = 'px-2 py-0.5 rounded text-[11px] font-mono bg-slate-900/80 text-amber-400 border border-amber-700/50 backdrop-blur-md shadow-sm';
+            } else {
+                badge.className = 'px-2 py-0.5 rounded text-[11px] font-mono bg-slate-900/80 text-rose-400 border border-rose-700/50 backdrop-blur-md shadow-sm';
+            }
+        };
+
+        const clearStallTimer = () => {
+            if (stallTimer) {
+                clearTimeout(stallTimer);
+                stallTimer = null;
+            }
+        };
+
+        const attemptRecovery = (reason) => {
+            if (!video || retryCount >= maxRetries) {
+                if (retryCount >= maxRetries) {
+                    art.notice.show = 'Network connection lost. Press Play to retry.';
+                }
+                return;
+            }
+            if (retryTimer) return;
+
+            retryCount += 1;
+            const delayMs = Math.min(15000, 1500 * Math.pow(2, retryCount - 1));
+            const resumeAt = lastKnownTime || video.currentTime || 0;
+            const shouldResumePlay = !userPaused;
+
+            art.notice.show = `${reason} — reconnecting at ${self.formatTimestamp(resumeAt)} (${retryCount}/${maxRetries})...`;
+
+            retryTimer = setTimeout(() => {
+                retryTimer = null;
+                const currentSrc = video.currentSrc || video.getAttribute('src') || art.option.url;
+                if (!currentSrc || currentSrc === '#') return;
+
+                const onMetaReady = () => {
+                    video.removeEventListener('loadedmetadata', onMetaReady);
+                    if (resumeAt > 0 && isFinite(video.duration) && resumeAt < video.duration) {
+                        video.currentTime = resumeAt;
+                    }
+                    if (shouldResumePlay) {
+                        video.play().catch(() => {});
+                    }
+                };
+
+                video.addEventListener('loadedmetadata', onMetaReady);
+                video.src = currentSrc;
+                video.load();
+            }, delayMs);
+        };
+
+        // Restore saved playback position when metadata loads for a stream
+        art.on('video:loadedmetadata', () => {
+            const key = self.getResumeStorageKey(art);
+            if (!key || key === lastRestoredSrc) {
+                updateBufferBadge();
+                return;
+            }
+            lastRestoredSrc = key;
+            try {
+                const saved = parseFloat(localStorage.getItem(key) || '0');
+                if (saved > 5 && isFinite(video.duration) && saved < video.duration - 10 && video.currentTime < 2) {
+                    video.currentTime = saved;
+                    lastKnownTime = saved;
+                    art.notice.show = `Resumed at ${self.formatTimestamp(saved)}`;
+                }
+            } catch (e) {
+                // Ignore localStorage restrictions
+            }
+            updateBufferBadge();
+        });
+
         // Initialize Web Audio graph on first user interaction
         art.on('play', () => {
+            userPaused = false;
+            guardPaused = false;
             window.OriginCastAudioEngine.init(art.video);
             window.OriginCastAudioEngine.resume();
+        });
+
+        art.on('pause', () => {
+            if (!guardPaused) {
+                userPaused = true;
+                clearStallTimer();
+            }
+        });
+
+        art.on('video:playing', () => {
+            retryCount = 0;
+            guardPaused = false;
+            clearStallTimer();
+            updateBufferBadge();
+        });
+
+        art.on('video:progress', () => {
+            updateBufferBadge();
+            clearStallTimer();
+            if (guardPaused && !userPaused) {
+                const ahead = self.getBufferedAhead(video);
+                const remaining = isFinite(video.duration) ? Math.max(0, video.duration - video.currentTime) : Infinity;
+                const needed = Math.min(self.bufferTargetSeconds, Math.max(1, remaining - 0.5));
+                if (ahead >= needed) {
+                    guardPaused = false;
+                    art.notice.show = `Buffered ${ahead.toFixed(1)}s — resuming playback`;
+                    video.play().catch(() => {});
+                } else {
+                    art.notice.show = `Slow network: buffering (${ahead.toFixed(1)}s / ${needed.toFixed(0)}s)...`;
+                }
+            }
+        });
+
+        art.on('video:timeupdate', () => {
+            if (video.currentTime > 0) {
+                lastKnownTime = video.currentTime;
+                retryCount = 0;
+                const now = Date.now();
+                if (now - lastSavedAt > 2000) {
+                    lastSavedAt = now;
+                    const key = self.getResumeStorageKey(art);
+                    if (key) {
+                        try {
+                            localStorage.setItem(key, String(Math.floor(video.currentTime)));
+                        } catch (e) {
+                            // Ignore storage quota errors
+                        }
+                    }
+                }
+            }
+            updateBufferBadge();
+        });
+
+        art.on('video:waiting', () => {
+            updateBufferBadge();
+            if (userPaused) return;
+            const ahead = self.getBufferedAhead(video);
+            if (self.bufferGuardEnabled && ahead < 0.8 && !video.paused && !video.ended) {
+                const remaining = isFinite(video.duration) ? Math.max(0, video.duration - video.currentTime) : Infinity;
+                if (remaining > 2) {
+                    guardPaused = true;
+                    video.pause();
+                    art.notice.show = `Slow network: building ${Math.min(self.bufferTargetSeconds, Math.ceil(remaining))}s buffer...`;
+                }
+            }
+            clearStallTimer();
+            stallTimer = setTimeout(() => {
+                if (!userPaused && !video.ended && self.getBufferedAhead(video) < 1) {
+                    attemptRecovery('Stream stalled');
+                }
+            }, 15000);
+        });
+
+        art.on('video:stalled', () => {
+            updateBufferBadge();
+            if (!userPaused && !stallTimer) {
+                stallTimer = setTimeout(() => {
+                    if (!userPaused && !video.ended && self.getBufferedAhead(video) < 1) {
+                        attemptRecovery('Slow network stall');
+                    }
+                }, 15000);
+            }
+        });
+
+        art.on('video:error', () => {
+            const errCode = video && video.error ? video.error.code : 0;
+            if (errCode === 2 || errCode === 3 || errCode === 4 || errCode === 0) {
+                attemptRecovery('Connection interrupted');
+            }
         });
 
         // Auto-play Next Episode on ended (TV series)
         if (opts.hasNextEpisode && opts.onNextEpisode) {
             art.on('video:ended', () => {
+                clearStallTimer();
+                const key = self.getResumeStorageKey(art);
+                if (key) {
+                    try {
+                        localStorage.removeItem(key);
+                    } catch (e) {
+                        // Ignore
+                    }
+                }
                 let secondsLeft = 5;
                 art.notice.show = `Up Next: Episode in ${secondsLeft}s...`;
                 this.nextCountdownTimer = setInterval(() => {

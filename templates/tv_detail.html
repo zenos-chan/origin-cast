@@ -300,7 +300,7 @@
         if (!player) return;
         currentEpIdx = allEpisodes.findIndex(e => e.file_path === filePath);
 
-        const streamUrl = `/stream/${encodeURIComponent(filePath)}`;
+        const streamUrl = `/stream/${filePath.split('/').map(encodeURIComponent).join('/')}`;
         player.switchUrl(streamUrl).then(() => {
             player.play();
         });
