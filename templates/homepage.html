@@ -88,7 +88,7 @@
     </section>
 
 
-    <!-- 2. WHAT WAS BEING WATCHED (CONTINUE WATCHING) -->
+    <!-- 2. WHAT WAS BEING WATCHED (CONTINUE WATCHING - LAST 3 ITEMS) -->
     <section id="continue-watching" class="space-y-4">
         <div class="flex items-center justify-between">
             <div class="flex items-center space-x-2.5">
@@ -97,91 +97,66 @@
                 </svg>
                 <h3 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Continue Watching</h3>
             </div>
-            <span class="text-xs text-slate-400 font-medium">Resume where you left off</span>
+            <span class="text-xs text-slate-400 font-medium">Last 3 watched items</span>
         </div>
 
+        {% if continue_watching %}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            <!-- Continue Card 1 -->
-            <div class="group relative bg-slate-900/90 rounded-xl overflow-hidden border border-slate-800 hover:border-slate-700 transition-all shadow-md">
-                <div class="relative aspect-video w-full overflow-hidden bg-slate-800">
-                    <img src="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?auto=format&fit=crop&w=600&q=80" 
-                         alt="Cyber City" 
-                         loading="lazy" 
-                         decoding="async" 
+            {% for item in continue_watching %}
+            <div class="group relative bg-slate-900/90 rounded-xl overflow-hidden border border-slate-800 hover:border-indigo-500/60 transition-all shadow-md flex flex-col justify-between">
+                <a href="{{ item.resume_url }}" class="block relative aspect-video w-full overflow-hidden bg-slate-800">
+                    <img src="{{ item.backdrop or item.poster }}"
+                         alt="{{ item.title }}"
+                         loading="lazy"
+                         decoding="async"
                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-                    <div class="absolute inset-0 bg-slate-950/40 group-hover:bg-slate-950/20 transition-colors flex items-center justify-center">
+                    <div class="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent group-hover:via-slate-950/15 transition-colors flex items-center justify-center">
                         <div class="w-12 h-12 rounded-full bg-indigo-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                             <svg class="w-6 h-6 fill-current translate-x-0.5" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
                         </div>
                     </div>
-                    <!-- Progress Bar -->
-                    <div class="absolute bottom-0 inset-x-0 h-1.5 bg-slate-700">
-                        <div class="h-full bg-indigo-500 rounded-r" style="width: 68%;"></div>
-                    </div>
-                </div>
-                <div class="p-4 flex items-center justify-between">
-                    <div>
-                        <h4 class="font-semibold text-white group-hover:text-indigo-400 transition-colors">Neo Tokyo 2099</h4>
-                        <p class="text-xs text-slate-400 mt-0.5">S2:E4 • 24m remaining</p>
-                    </div>
-                    <span class="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">TV Show</span>
-                </div>
-            </div>
 
-            <!-- Continue Card 2 -->
-            <div class="group relative bg-slate-900/90 rounded-xl overflow-hidden border border-slate-800 hover:border-slate-700 transition-all shadow-md">
-                <div class="relative aspect-video w-full overflow-hidden bg-slate-800">
-                    <img src="https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80" 
-                         alt="The Deep Silence" 
-                         loading="lazy" 
-                         decoding="async" 
-                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-                    <div class="absolute inset-0 bg-slate-950/40 group-hover:bg-slate-950/20 transition-colors flex items-center justify-center">
-                        <div class="w-12 h-12 rounded-full bg-indigo-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                            <svg class="w-6 h-6 fill-current translate-x-0.5" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
-                        </div>
-                    </div>
-                    <!-- Progress Bar -->
-                    <div class="absolute bottom-0 inset-x-0 h-1.5 bg-slate-700">
-                        <div class="h-full bg-indigo-500 rounded-r" style="width: 42%;"></div>
-                    </div>
-                </div>
-                <div class="p-4 flex items-center justify-between">
-                    <div>
-                        <h4 class="font-semibold text-white group-hover:text-indigo-400 transition-colors">The Deep Silence</h4>
-                        <p class="text-xs text-slate-400 mt-0.5">1h 12m remaining</p>
-                    </div>
-                    <span class="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">Movie</span>
-                </div>
-            </div>
+                    <!-- Type / Season-Episode Badge -->
+                    <span class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider bg-slate-950/85 backdrop-blur-sm border border-slate-700 text-indigo-300">
+                        {% if item.media_type == 'tv' %}S{{ item.season }}:E{{ item.episode }}{% else %}Movie{% endif %}
+                    </span>
 
-            <!-- Continue Card 3 -->
-            <div class="group relative bg-slate-900/90 rounded-xl overflow-hidden border border-slate-800 hover:border-slate-700 transition-all shadow-md hidden lg:block">
-                <div class="relative aspect-video w-full overflow-hidden bg-slate-800">
-                    <img src="https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80" 
-                         alt="Crown of Thorns" 
-                         loading="lazy" 
-                         decoding="async" 
-                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-                    <div class="absolute inset-0 bg-slate-950/40 group-hover:bg-slate-950/20 transition-colors flex items-center justify-center">
-                        <div class="w-12 h-12 rounded-full bg-indigo-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                            <svg class="w-6 h-6 fill-current translate-x-0.5" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
-                        </div>
-                    </div>
+                    <!-- Time Watched Badge -->
+                    <span class="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold bg-slate-950/85 backdrop-blur-sm border border-slate-700 text-emerald-400">
+                        Till {{ item.position_formatted }}{% if item.duration_formatted %} / {{ item.duration_formatted }}{% endif %}
+                    </span>
+
                     <!-- Progress Bar -->
-                    <div class="absolute bottom-0 inset-x-0 h-1.5 bg-slate-700">
-                        <div class="h-full bg-indigo-500 rounded-r" style="width: 85%;"></div>
+                    <div class="absolute bottom-0 inset-x-0 h-1.5 bg-slate-700/80">
+                        <div class="h-full bg-indigo-500 rounded-r" style="width: {{ item.progress_percent if item.progress_percent > 0 else 5 }}%;"></div>
                     </div>
-                </div>
-                <div class="p-4 flex items-center justify-between">
-                    <div>
-                        <h4 class="font-semibold text-white group-hover:text-indigo-400 transition-colors">Crown of Thorns</h4>
-                        <p class="text-xs text-slate-400 mt-0.5">S1:E8 • 8m remaining</p>
+                </a>
+
+                <div class="p-4 flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <a href="{{ item.resume_url }}" class="block font-semibold text-white group-hover:text-indigo-400 transition-colors truncate">{{ item.title }}</a>
+                        <p class="text-xs text-slate-400 mt-0.5 truncate">
+                            {% if item.media_type == 'tv' %}
+                                Season {{ item.season }} • Episode {{ item.episode }}{% if item.episode_title %} ({{ item.episode_title }}){% endif %} • {{ item.position_formatted }}
+                            {% else %}
+                                {{ item.year or 'Movie' }} • Watched till {{ item.position_formatted }}
+                            {% endif %}
+                        </p>
                     </div>
-                    <span class="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">TV Show</span>
+                    <a href="{{ item.resume_url }}"
+                       class="flex-shrink-0 inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors shadow-md shadow-indigo-600/25">
+                        <span>Resume</span>
+                        <span>▶</span>
+                    </a>
                 </div>
             </div>
+            {% endfor %}
         </div>
+        {% else %}
+        <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 text-center text-xs text-slate-400">
+            No watch history yet. Play any movie or TV episode and your last 3 watched titles will appear here to resume directly.
+        </div>
+        {% endif %}
     </section>
 
 

@@ -9,8 +9,7 @@ import urllib.parse
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash
 import flask
 from engine import Engine
-from extensions import default_extension_manager
-from downloader import DownloadManager
+from engine.gdrive import guess_video_mimetype
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "origincast-secret-admin-key-2026-secure")
@@ -21,17 +20,10 @@ ADMIN_PASS = os.environ.get("ADMIN_PASS", "admin123")
 
 # Default global media engine instance
 media_engine = Engine(
-    movies_dir="./movies",
-    tv_dir="./tv",
+    movies_dir=os.environ.get("MOVIES_DIR", "./movies"),
+    tv_dir=os.environ.get("TV_DIR", "./tv"),
     cache_file=".metadata_cache.json",
     auto_fetch_online=True
-)
-
-# Background media downloader manager
-download_manager = DownloadManager(
-    movies_dir="./movies",
-    tv_dir="./tv",
-    on_complete_callback=lambda: media_engine.scan_all()
 )
 
 
@@ -44,8 +36,6 @@ def init_engine(movies_dir: str = "./movies", tv_dir: str = "./tv") -> Engine:
         cache_file=".metadata_cache.json",
         auto_fetch_online=True
     )
-    download_manager.movies_dir = Path(movies_dir).resolve()
-    download_manager.tv_dir = Path(tv_dir).resolve()
     return media_engine
 
 
@@ -70,18 +60,15 @@ def format_file_size(bytes_val):
 
 @app.context_processor
 def inject_admin_globals():
-    """Injects admin status and catalog counts across all templates."""
+    """Injects admin status, library source states, and catalog counts across all templates."""
     movies_len = len(media_engine.movies) if media_engine.movies else 0
     tv_len = len(media_engine.tv_shows) if media_engine.tv_shows else 0
-    exts_len = len(default_extension_manager.extensions)
-    active_dl = len(download_manager.tasks)
     return {
         "is_admin": session.get("admin_logged_in", False),
         "admin_user": session.get("admin_user", "admin"),
         "movies_count": movies_len,
         "tv_count": tv_len,
-        "extensions_count": exts_len,
-        "active_downloads_count": active_dl
+        "library_sources": media_engine.get_library_sources(),
     }
 
 
@@ -342,13 +329,18 @@ def movie_detail(movie_slug):
     if not selected_movie:
         return redirect(url_for("home"))
 
-    subtitles = find_subtitles_for_file(selected_movie.get("file_path", ""))
+    if selected_movie.get("source") == "gdrive":
+        subtitles = selected_movie.get("gdrive_subtitles", [])
+    else:
+        subtitles = find_subtitles_for_file(selected_movie.get("file_path", ""))
     other_movies = [m for m in media_engine.movies if m.get("id") != selected_movie.get("id")][:6]
+    resume_t = request.args.get("t", type=float)
     return render_template(
         "movie_detail.html",
         movie=selected_movie,
         subtitles=subtitles,
-        other_movies=other_movies
+        other_movies=other_movies,
+        resume_t=resume_t,
     )
 
 
@@ -388,7 +380,11 @@ def tv_detail(tv_slug):
     seasons = selected_show.get("seasons", {})
     current_ep = None
     if seasons:
-        season_eps = seasons.get(str(req_season)) or seasons.get(list(seasons.keys())[0])
+        season_eps = seasons.get(str(req_season))
+        if not season_eps and str(req_season).isdigit():
+            season_eps = seasons.get(int(req_season))
+        if not season_eps:
+            season_eps = seasons.get(list(seasons.keys())[0])
         if season_eps:
             for ep in season_eps:
                 if str(ep.get("episode")) == str(req_episode):
@@ -397,13 +393,18 @@ def tv_detail(tv_slug):
             if not current_ep:
                 current_ep = season_eps[0]
 
-    subtitles = find_subtitles_for_file(current_ep.get("file_path", "")) if current_ep else []
+    if current_ep and current_ep.get("source") == "gdrive":
+        subtitles = current_ep.get("gdrive_subtitles", [])
+    else:
+        subtitles = find_subtitles_for_file(current_ep.get("file_path", "")) if current_ep else []
+    resume_t = request.args.get("t", type=float)
     return render_template(
         "tv_detail.html",
         show=selected_show,
         seasons=seasons,
         current_episode=current_ep,
-        subtitles=subtitles
+        subtitles=subtitles,
+        resume_t=resume_t,
     )
 
 
@@ -506,6 +507,191 @@ def stream_video(filepath):
     )
 
 
+def stream_upstream_chunks(resp, chunk_size: int = STREAM_CHUNK_SIZE) -> Iterator[bytes]:
+    """Yields bounded byte chunks directly from an upstream HTTP socket without disk writes."""
+    try:
+        while True:
+            data = resp.read(chunk_size)
+            if not data:
+                break
+            yield data
+    except (BrokenPipeError, ConnectionResetError, GeneratorExit):
+        return
+    finally:
+        try:
+            resp.close()
+        except Exception:
+            pass
+
+
+def find_gdrive_media_filename(file_id: str) -> str:
+    """Looks up the indexed filename for a Google Drive file ID if present."""
+    for m in media_engine.movies:
+        if m.get("gdrive_file_id") == file_id:
+            return Path(m.get("file_path", "")).name
+    for show in media_engine.tv_shows:
+        for eps in (show.get("seasons") or {}).values():
+            for ep in eps:
+                if ep.get("gdrive_file_id") == file_id:
+                    return Path(ep.get("file_path", "")).name
+    return ""
+
+
+def find_gdrive_subtitles_by_file_id(file_id: str) -> List[Dict[str, Any]]:
+    """Finds cached Google Drive subtitle tracks associated with a Drive video file ID."""
+    for m in media_engine.movies:
+        if m.get("gdrive_file_id") == file_id:
+            return m.get("gdrive_subtitles", [])
+    for show in media_engine.tv_shows:
+        for eps in (show.get("seasons") or {}).values():
+            for ep in eps:
+                if ep.get("gdrive_file_id") == file_id:
+                    return ep.get("gdrive_subtitles", [])
+    return []
+
+
+@app.route("/stream/gdrive/<file_id>", methods=["GET", "HEAD", "OPTIONS"])
+def stream_gdrive_video(file_id):
+    """
+    Streams a Google Drive video file directly over HTTP byte-range chunks
+    without downloading the video to local disk.
+    """
+    cors_headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers": "Range, Origin, Content-Type, Accept",
+        "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges, X-Stream-Mode, ETag",
+    }
+
+    if request.method == "OPTIONS":
+        return flask.Response(status=204, headers=cors_headers)
+
+    if not re.match(r"^[a-zA-Z0-9_-]{10,}$", file_id or ""):
+        return jsonify({"status": "error", "message": "Invalid Google Drive file ID."}), 400
+
+    try:
+        target = media_engine.gdrive_client.resolve_stream_target(file_id)
+    except Exception as exc:
+        return jsonify({"status": "error", "message": f"Unable to stream Google Drive file: {exc}"}), 502
+
+    total_size = int(target.get("total_size") or 0)
+    filename = find_gdrive_media_filename(file_id)
+    upstream_ctype = target.get("content_type") or ""
+    mimetype = guess_video_mimetype(filename, fallback=upstream_ctype if "video/" in upstream_ctype else "video/mp4")
+
+    common_headers = {
+        **cors_headers,
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "private, max-age=3600",
+        "X-Stream-Mode": "gdrive-network-chunked",
+    }
+
+    range_header = request.headers.get("Range")
+    if range_header:
+        if total_size > 0:
+            byte_range = parse_range_header(range_header, total_size)
+            if byte_range is None:
+                return flask.Response(
+                    status=416,
+                    headers={
+                        **cors_headers,
+                        "Content-Range": f"bytes */{total_size}",
+                        "Accept-Ranges": "bytes",
+                    },
+                )
+            start, end = byte_range
+        else:
+            match = RANGE_HEADER_RE.match(range_header.split(",", 1)[0].strip())
+            if not match or (not match.group(1) and not match.group(2)):
+                return flask.Response(status=416, headers={**cors_headers, "Accept-Ranges": "bytes"})
+            start = int(match.group(1) or 0)
+            req_end = int(match.group(2)) if match.group(2) else (start + STREAM_RANGE_WINDOW - 1)
+            end = min(req_end, start + STREAM_RANGE_WINDOW - 1)
+
+        if request.method == "HEAD":
+            chunk_len = end - start + 1
+            head_headers = {**common_headers}
+            if total_size > 0:
+                head_headers["Content-Range"] = f"bytes {start}-{end}/{total_size}"
+            resp = flask.Response(status=206, mimetype=mimetype, headers=head_headers)
+            resp.headers["Content-Length"] = str(chunk_len)
+            return resp
+
+        try:
+            upstream_resp, _ = media_engine.gdrive_client.open_range_stream(file_id, start=start, end=end)
+        except Exception as exc:
+            return jsonify({"status": "error", "message": f"Google Drive range stream failed: {exc}"}), 502
+
+        upstream_status = getattr(upstream_resp, "status", 206)
+        resp_headers = {**common_headers}
+        if upstream_resp.headers.get("Content-Range"):
+            resp_headers["Content-Range"] = upstream_resp.headers["Content-Range"]
+        elif total_size > 0 and upstream_status == 206:
+            resp_headers["Content-Range"] = f"bytes {start}-{end}/{total_size}"
+        if upstream_resp.headers.get("Content-Length"):
+            resp_headers["Content-Length"] = upstream_resp.headers["Content-Length"]
+
+        return flask.Response(
+            stream_upstream_chunks(upstream_resp),
+            status=upstream_status,
+            mimetype=mimetype,
+            direct_passthrough=True,
+            headers=resp_headers,
+        )
+
+    if request.method == "HEAD":
+        resp = flask.Response(status=200, mimetype=mimetype, headers=common_headers)
+        if total_size > 0:
+            resp.headers["Content-Length"] = str(total_size)
+        return resp
+
+    try:
+        upstream_resp, _ = media_engine.gdrive_client.open_range_stream(file_id)
+    except Exception as exc:
+        return jsonify({"status": "error", "message": f"Google Drive stream failed: {exc}"}), 502
+
+    resp_headers = {**common_headers}
+    if upstream_resp.headers.get("Content-Length"):
+        resp_headers["Content-Length"] = upstream_resp.headers["Content-Length"]
+    elif total_size > 0:
+        resp_headers["Content-Length"] = str(total_size)
+
+    return flask.Response(
+        stream_upstream_chunks(upstream_resp),
+        status=200,
+        mimetype=mimetype,
+        direct_passthrough=True,
+        headers=resp_headers,
+    )
+
+
+@app.route("/subtitles/gdrive/<file_id>")
+def stream_gdrive_subtitles(file_id):
+    """Streams Google Drive subtitle files directly from memory as WebVTT."""
+    if not re.match(r"^[a-zA-Z0-9_-]{10,}$", file_id or ""):
+        return jsonify({"status": "error", "message": "Invalid subtitle file ID."}), 400
+
+    try:
+        raw_bytes = media_engine.gdrive_client.fetch_bytes(file_id, max_bytes=2 * 1024 * 1024)
+    except Exception as exc:
+        return jsonify({"status": "error", "message": f"Unable to load Drive subtitle: {exc}"}), 502
+
+    try:
+        content = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        content = raw_bytes.decode("latin-1", errors="replace")
+
+    ext = (request.args.get("ext") or "").lower().lstrip(".")
+    if ext != "vtt" and not content.lstrip("\ufeff").startswith("WEBVTT"):
+        content = srt_to_webvtt(content)
+
+    return flask.Response(
+        content,
+        mimetype="text/vtt; charset=utf-8",
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
+
 @app.route("/subtitles/<path:filepath>")
 def stream_subtitles(filepath):
     """
@@ -538,8 +724,29 @@ def get_media_subtitles():
     filepath = request.args.get("filepath", "")
     if not filepath:
         return jsonify({"subtitles": []})
+    if filepath.startswith("gdrive/"):
+        parts = filepath.split("/")
+        file_id = parts[1] if len(parts) > 1 else ""
+        return jsonify({"subtitles": find_gdrive_subtitles_by_file_id(file_id)})
     subs = find_subtitles_for_file(filepath)
     return jsonify({"subtitles": subs})
+
+
+@app.route("/api/watch-history", methods=["GET", "POST"])
+def api_watch_history():
+    """Returns or updates the last 3 watched movies/TV episodes."""
+    if request.method == "POST":
+        data = request.get_json(force=True, silent=True) or {}
+        items = media_engine.record_watch_progress(data)
+        return jsonify({"status": "success", "items": items})
+
+    return jsonify({"status": "success", "items": media_engine.get_continue_watching(3)})
+
+
+@app.route("/health")
+def health_check():
+    """Lightweight container health check endpoint."""
+    return jsonify({"status": "ok"}), 200
 
 
 @app.route("/api/scan")
@@ -689,6 +896,11 @@ def admin_scanner():
     tv_list = media_engine.tv_shows if media_engine.tv_shows else media_engine.scan_tv()
     cache_path = Path(media_engine.cache_file).resolve()
     cache_file_size = cache_path.stat().st_size if cache_path.exists() else 0
+    cloud_meta_path = Path(media_engine.cloud_metadata_file).resolve()
+    cloud_meta_count = (
+        len(media_engine.cloud_metadata.get("movies", {}))
+        + len(media_engine.cloud_metadata.get("tv", {}))
+    )
 
     return render_template(
         "admin/scanner.html",
@@ -698,7 +910,11 @@ def admin_scanner():
         movies_dir_path=str(media_engine.movies_dir.resolve()),
         tv_dir_path=str(media_engine.tv_dir.resolve()),
         cache_file_path=str(cache_path),
-        cache_file_size=cache_file_size
+        cache_file_size=cache_file_size,
+        cloud_metadata_path=str(cloud_meta_path),
+        cloud_metadata_count=cloud_meta_count,
+        gdrive_config=media_engine.gdrive_config,
+        gdrive_status=media_engine.gdrive_status,
     )
 
 
@@ -715,11 +931,108 @@ def admin_settings():
         movies_dir_path=str(media_engine.movies_dir.resolve()),
         tv_dir_path=str(media_engine.tv_dir.resolve()),
         cache_file_path=str(cache_path),
+        gdrive_config=media_engine.gdrive_config,
+        gdrive_status=media_engine.gdrive_status,
         python_version=platform.python_version(),
         flask_version=flask.__version__,
         os_platform=platform.platform(),
         workspace_dir=str(Path(".").resolve())
     )
+
+
+@app.route("/api/admin/gdrive/config", methods=["GET", "POST"])
+@admin_required
+def api_admin_gdrive_config():
+    """Gets or updates Google Drive folder configuration and optionally triggers a library scan."""
+    if request.method == "POST":
+        data = request.get_json() or {}
+        enabled = bool(data.get("enabled", True))
+        api_key = str(data.get("api_key", "")).strip()
+        movies_folder = str(data.get("movies_folder", "")).strip()
+        tv_folder = str(data.get("tv_folder", "")).strip()
+
+        cfg = media_engine.save_gdrive_config(
+            enabled=enabled,
+            api_key=api_key,
+            movies_folder=movies_folder,
+            tv_folder=tv_folder,
+        )
+        results = media_engine.scan_all()
+        return jsonify({
+            "status": "success",
+            "message": "Google Drive settings saved and library scanned.",
+            "config": cfg,
+            "library_sources": media_engine.get_library_sources(),
+            "gdrive_status": media_engine.gdrive_status,
+            "movies_count": len(results["movies"]),
+            "tv_count": len(results["tv"]),
+        })
+
+    return jsonify({
+        "status": "success",
+        "config": media_engine.gdrive_config,
+        "library_sources": media_engine.get_library_sources(),
+        "gdrive_status": media_engine.gdrive_status,
+    })
+
+
+@app.route("/api/admin/library/sources", methods=["GET", "POST"])
+@admin_required
+def api_admin_library_sources():
+    """Gets or toggles on/off switches for Local Library and Cloud Library (Google Drive)."""
+    if request.method == "POST":
+        data = request.get_json() or {}
+        local_enabled = data.get("local_enabled")
+        cloud_enabled = data.get("cloud_enabled")
+
+        sources = media_engine.save_library_sources(
+            local_enabled=local_enabled,
+            cloud_enabled=cloud_enabled,
+        )
+        results = media_engine.scan_all()
+        return jsonify({
+            "status": "success",
+            "message": "Library sources updated.",
+            "library_sources": sources,
+            "gdrive_status": media_engine.gdrive_status,
+            "movies_count": len(results["movies"]),
+            "tv_count": len(results["tv"]),
+        })
+
+    return jsonify({
+        "status": "success",
+        "library_sources": media_engine.get_library_sources(),
+        "gdrive_status": media_engine.gdrive_status,
+    })
+
+
+@app.route("/api/admin/metadata/refresh", methods=["POST"])
+@admin_required
+def api_admin_metadata_refresh():
+    """Fetches and stores online metadata for Google Drive items (and missing local folders)."""
+    data = request.get_json(silent=True) or {}
+    force = bool(data.get("force", True))
+
+    local_updated = 0
+    if media_engine.local_enabled:
+        from cron_metadata import process_directory
+        local_updated += process_directory(media_engine.movies_dir, "movie", force=False)
+        local_updated += process_directory(media_engine.tv_dir, "tv", force=False)
+
+    results = media_engine.refresh_cloud_metadata(force=force)
+    cloud_count = (
+        len(media_engine.cloud_metadata.get("movies", {}))
+        + len(media_engine.cloud_metadata.get("tv", {}))
+    )
+    return jsonify({
+        "status": "success",
+        "message": "Metadata fetched and stored locally.",
+        "movies_count": len(results["movies"]),
+        "tv_count": len(results["tv"]),
+        "local_updated": local_updated,
+        "cloud_metadata_count": cloud_count,
+        "gdrive_status": media_engine.gdrive_status,
+    })
 
 
 @app.route("/api/admin/scan", methods=["POST"])
@@ -732,267 +1045,11 @@ def api_admin_scan():
         "message": "Library re-scanned successfully",
         "movies_count": len(results["movies"]),
         "tv_count": len(results["tv"]),
+        "library_sources": media_engine.get_library_sources(),
+        "gdrive_status": media_engine.gdrive_status,
         "movies_dir": str(media_engine.movies_dir),
         "tv_dir": str(media_engine.tv_dir)
     })
-
-
-# ---------------------------------------------------------------------------
-# Extensions Management Routes & Scraper APIs
-# ---------------------------------------------------------------------------
-@app.route("/admin/extensions")
-@admin_required
-def admin_extensions():
-    """Scraper extensions management dashboard with latest movies grid."""
-    exts = default_extension_manager.list_extensions()
-    default_ext_id = exts[0]["id"] if exts else "hdhub4u"
-    latest_movies = default_extension_manager.get_latest(default_ext_id)
-    current_ext = default_extension_manager.get_extension(default_ext_id)
-    return render_template(
-        "admin/extensions.html",
-        active_page="extensions",
-        extensions=exts,
-        extensions_count=len(exts),
-        current_ext_id=default_ext_id,
-        current_ext_url=current_ext.base_url if current_ext else "https://new16.hdhub4u.cl",
-        initial_movies=latest_movies
-    )
-
-
-@app.route("/api/admin/extensions/<extension_id>/latest", methods=["GET"])
-@admin_required
-def api_admin_extension_latest(extension_id):
-    """Returns grid of latest available movies for the extension."""
-    page = request.args.get("page", 1, type=int)
-    ext = default_extension_manager.get_extension(extension_id)
-    if not ext:
-        return jsonify({"status": "error", "message": f"Extension '{extension_id}' not found."}), 404
-
-    try:
-        movies = ext.get_latest(page=page) if hasattr(ext, "get_latest") else []
-        return jsonify({"status": "success", "results": movies, "count": len(movies)})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/admin/extensions", methods=["GET", "POST"])
-@admin_required
-def api_admin_extensions():
-    """Returns list of extensions or creates a new modular scraper extension."""
-    if request.method == "POST":
-        data = request.get_json() or {}
-        ext_id = data.get("id", "").strip()
-        name = data.get("name", "").strip()
-        base_url = data.get("base_url", "").strip()
-        description = data.get("description", "").strip()
-
-        if not name or not base_url:
-            return jsonify({"status": "error", "message": "Extension name and base URL are required."}), 400
-
-        try:
-            new_ext = default_extension_manager.create_custom_extension(
-                ext_id=ext_id,
-                name=name,
-                base_url=base_url,
-                description=description
-            )
-            return jsonify({
-                "status": "success",
-                "message": f"Extension '{new_ext.name}' registered successfully.",
-                "extension": new_ext.to_dict()
-            })
-        except Exception as e:
-            return jsonify({"status": "error", "message": str(e)}), 500
-
-    return jsonify({"status": "success", "extensions": default_extension_manager.list_extensions()})
-
-
-@app.route("/api/admin/extensions/<extension_id>", methods=["DELETE"])
-@admin_required
-def api_admin_delete_extension(extension_id):
-    """Deletes custom extension."""
-    try:
-        success = default_extension_manager.delete_custom_extension(extension_id)
-        if success:
-            return jsonify({"status": "success", "message": f"Extension '{extension_id}' deleted."})
-        return jsonify({"status": "error", "message": "Could not delete extension."}), 400
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
-
-
-@app.route("/api/admin/extensions/<extension_id>/toggle", methods=["POST"])
-@admin_required
-def api_admin_toggle_extension(extension_id):
-    """Enables or disables a scraper extension."""
-    data = request.get_json() or {}
-    enabled = data.get("enabled")
-    try:
-        new_state = default_extension_manager.toggle_extension(extension_id, enabled)
-        return jsonify({"status": "success", "extension_id": extension_id, "enabled": new_state})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 404
-
-
-@app.route("/api/admin/extensions/<extension_id>/url", methods=["POST"])
-@admin_required
-def api_admin_update_extension_url(extension_id):
-    """Updates target mirror or base URL for an extension."""
-    data = request.get_json() or {}
-    new_url = data.get("url", "").strip()
-    if not new_url:
-        return jsonify({"status": "error", "message": "URL parameter is required."}), 400
-    try:
-        updated = default_extension_manager.update_extension_url(extension_id, new_url)
-        return jsonify({"status": "success", "extension_id": extension_id, "base_url": updated})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
-
-
-@app.route("/api/admin/extensions/<extension_id>/search", methods=["POST"])
-@admin_required
-def api_admin_extension_search(extension_id):
-    """Executes search query using the selected scraper extension."""
-    data = request.get_json() or {}
-    query = data.get("query", "").strip()
-    if not query:
-        return jsonify({"status": "error", "message": "Query parameter is required."}), 400
-
-    ext = default_extension_manager.get_extension(extension_id)
-    if not ext:
-        return jsonify({"status": "error", "message": f"Extension '{extension_id}' not found."}), 404
-
-    try:
-        results = ext.search(query)
-        return jsonify({"status": "success", "results": results, "query": query, "count": len(results)})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/admin/extensions/<extension_id>/scrape", methods=["POST"])
-@admin_required
-def api_admin_extension_scrape(extension_id):
-    """Scrapes movie details, available video qualities, and download links from a URL."""
-    data = request.get_json() or {}
-    url = data.get("url", "").strip()
-    if not url:
-        return jsonify({"status": "error", "message": "URL parameter is required."}), 400
-
-    ext = default_extension_manager.get_extension(extension_id)
-    if not ext:
-        return jsonify({"status": "error", "message": f"Extension '{extension_id}' not found."}), 404
-
-    try:
-        scrape_data = ext.scrape(url)
-        return jsonify({"status": "success", "data": scrape_data})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-# ---------------------------------------------------------------------------
-# Background Downloader Routes & Management APIs
-# ---------------------------------------------------------------------------
-@app.route("/admin/downloads")
-@admin_required
-def admin_downloads():
-    """Download management dashboard showing active and completed tasks."""
-    tasks_data = download_manager.get_all_tasks()
-    return render_template(
-        "admin/downloads.html",
-        active_page="downloads",
-        active=tasks_data["active"],
-        completed=tasks_data["completed"],
-        movies_dir_path=str(download_manager.movies_dir.resolve()),
-        tv_dir_path=str(download_manager.tv_dir.resolve())
-    )
-
-
-@app.route("/api/admin/downloads", methods=["GET"])
-@admin_required
-def api_admin_downloads():
-    """Returns active downloads, speeds, ETAs, and completed tasks."""
-    return jsonify(download_manager.get_all_tasks())
-
-
-@app.route("/api/admin/downloads/add", methods=["POST"])
-@admin_required
-def api_admin_downloads_add():
-    """Queues a new download task with high-speed segmented streaming."""
-    data = request.get_json() or {}
-    url = data.get("url", "").strip()
-    title = data.get("title", "").strip()
-    quality = data.get("quality", "1080p").strip()
-    media_type = data.get("type", "movie").strip()
-    size_hint = data.get("size", "").strip()
-    poster = data.get("poster", "").strip()
-
-    if not url or not title:
-        return jsonify({"status": "error", "message": "URL and Title are required."}), 400
-
-    try:
-        task = download_manager.add_download(
-            url=url,
-            title=title,
-            quality=quality,
-            media_type=media_type,
-            size_hint=size_hint,
-            poster=poster
-        )
-        return jsonify({
-            "status": "success",
-            "message": f"Download task for '{title}' queued.",
-            "task": task.to_dict()
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/admin/downloads/<task_id>/pause", methods=["POST"])
-@admin_required
-def api_admin_downloads_pause(task_id):
-    """Pauses an ongoing download task."""
-    success = download_manager.pause_task(task_id)
-    if success:
-        return jsonify({"status": "success", "message": "Task paused."})
-    return jsonify({"status": "error", "message": "Task not found."}), 404
-
-
-@app.route("/api/admin/downloads/<task_id>/resume", methods=["POST"])
-@admin_required
-def api_admin_downloads_resume(task_id):
-    """Resumes a paused download task."""
-    success = download_manager.resume_task(task_id)
-    if success:
-        return jsonify({"status": "success", "message": "Task resumed."})
-    return jsonify({"status": "error", "message": "Task not found."}), 404
-
-
-@app.route("/api/admin/downloads/<task_id>", methods=["DELETE"])
-@admin_required
-def api_admin_downloads_delete(task_id):
-    """Cancels/deletes download task and partial/finished files."""
-    success = download_manager.delete_task(task_id)
-    if success:
-        return jsonify({"status": "success", "message": "Task deleted."})
-    return jsonify({"status": "error", "message": "Task not found."}), 404
-
-
-@app.route("/api/admin/downloads/<task_id>/retry", methods=["POST"])
-@admin_required
-def api_admin_downloads_retry(task_id):
-    """Retries a failed download task."""
-    success = download_manager.retry_task(task_id)
-    if success:
-        return jsonify({"status": "success", "message": "Task queued for retry."})
-    return jsonify({"status": "error", "message": "Task not found."}), 404
-
-
-@app.route("/api/admin/downloads/clear-completed", methods=["POST"])
-@admin_required
-def api_admin_downloads_clear_completed():
-    """Clears completed downloads history list."""
-    download_manager.completed_history.clear()
-    download_manager._save_history()
-    return jsonify({"status": "success", "message": "Completed history cleared."})
 
 
 def parse_cli_args():
@@ -1000,23 +1057,23 @@ def parse_cli_args():
     parser = argparse.ArgumentParser(description="OriginCast Media Server")
     parser.add_argument(
         "--movie-dir", "-m",
-        default="./movies",
+        default=os.environ.get("MOVIES_DIR", "./movies"),
         help="Path to movies directory (default: ./movies)"
     )
     parser.add_argument(
         "--tv-dir", "-t",
-        default="./tv",
+        default=os.environ.get("TV_DIR", "./tv"),
         help="Path to TV shows directory (default: ./tv)"
     )
     parser.add_argument(
         "--host",
-        default="127.0.0.1",
+        default=os.environ.get("HOST", "127.0.0.1"),
         help="Host IP to bind to (default: 127.0.0.1)"
     )
     parser.add_argument(
         "--port", "-p",
         type=int,
-        default=5000,
+        default=int(os.environ.get("PORT", "5000")),
         help="Port to listen on (default: 5000)"
     )
     parser.add_argument(

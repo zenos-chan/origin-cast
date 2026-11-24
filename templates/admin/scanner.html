@@ -22,17 +22,53 @@
                 </p>
             </div>
             
-            <button id="full-scan-trigger-btn" onclick="startFullScan()" 
-                    class="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-600/30 flex-shrink-0">
-                <svg id="scan-btn-spinner" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                </svg>
-                <span id="scan-btn-label">Run Full Library Scan</span>
-            </button>
+            <div class="flex flex-wrap items-center gap-2.5 flex-shrink-0">
+                <button id="refresh-meta-btn" onclick="refreshMetadata()"
+                        class="inline-flex items-center space-x-2 px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-sm transition-all">
+                    <svg id="meta-btn-spinner" class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                    </svg>
+                    <span id="meta-btn-label">Fetch &amp; Store Metadata</span>
+                </button>
+
+                <button id="full-scan-trigger-btn" onclick="startFullScan()" 
+                        class="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-600/30">
+                    <svg id="scan-btn-spinner" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    <span id="scan-btn-label">Run Full Library Scan</span>
+                </button>
+            </div>
         </div>
 
         <!-- Scan Progress & Feedback Bar -->
         <div id="scan-status-alert" class="hidden p-4 rounded-xl border text-sm transition-all"></div>
+
+        <!-- Source Switches -->
+        <div class="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex flex-wrap items-center gap-3">
+                <label class="inline-flex items-center space-x-2.5 cursor-pointer select-none px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <span class="font-semibold text-slate-200">Local Library</span>
+                    <div class="relative inline-flex items-center">
+                        <input type="checkbox" id="scan-local-switch" class="sr-only peer"
+                               {% if library_sources.local_enabled %}checked{% endif %}
+                               onchange="toggleScannerSources()">
+                        <div class="w-9 h-5 bg-slate-800 border border-slate-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 peer-checked:border-emerald-500"></div>
+                    </div>
+                </label>
+
+                <label class="inline-flex items-center space-x-2.5 cursor-pointer select-none px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <span class="font-semibold text-slate-200">Cloud Library (Google Drive)</span>
+                    <div class="relative inline-flex items-center">
+                        <input type="checkbox" id="scan-cloud-switch" class="sr-only peer"
+                               {% if library_sources.cloud_enabled %}checked{% endif %}
+                               onchange="toggleScannerSources()">
+                        <div class="w-9 h-5 bg-slate-800 border border-slate-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-600 peer-checked:border-sky-500"></div>
+                    </div>
+                </label>
+            </div>
+            <a href="{{ url_for('admin_settings') }}" class="text-indigo-400 hover:underline font-medium">Configure Drive Folders &rarr;</a>
+        </div>
     </div>
 
     <!-- Monitored Paths Card -->
@@ -92,6 +128,8 @@
             <div class="text-slate-400">[CONFIG] Movies Target Directory: {{ movies_dir_path }}</div>
             <div class="text-slate-400">[CONFIG] TV Target Directory: {{ tv_dir_path }}</div>
             <div class="text-slate-400">[CONFIG] Cache File: {{ cache_file_path }} ({{ cache_file_size|filesize }})</div>
+            <div class="text-slate-400">[CLOUD META] Store: {{ cloud_metadata_path }} ({{ cloud_metadata_count }} items saved locally)</div>
+            <div class="text-sky-400">[GDRIVE] Movies Folder: {{ gdrive_config.movies_folder or 'Not configured' }} | TV Folder: {{ gdrive_config.tv_folder or 'Not configured' }}</div>
             <div class="text-emerald-400">[READY] {{ movies_count }} movies and {{ tv_count }} series currently loaded in cache memory.</div>
         </div>
     </div>
@@ -111,6 +149,57 @@
 
     function clearConsole() {
         document.getElementById('console-output').innerHTML = '<div class="text-slate-500">[CONSOLE CLEARED] Ready.</div>';
+    }
+
+    function toggleScannerSources() {
+        const localOn = document.getElementById('scan-local-switch').checked;
+        const cloudOn = document.getElementById('scan-cloud-switch').checked;
+        logMessage(`Updating library sources (Local=${localOn ? 'ON' : 'OFF'}, Cloud=${cloudOn ? 'ON' : 'OFF'})...`, 'text-indigo-400');
+
+        fetch('/api/admin/library/sources', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ local_enabled: localOn, cloud_enabled: cloudOn })
+        })
+        .then(res => res.json())
+        .then(data => {
+            logMessage(`Sources updated: ${data.movies_count} movies, ${data.tv_count} TV shows indexed. Refreshing...`, 'text-emerald-400');
+            setTimeout(() => window.location.reload(), 600);
+        })
+        .catch(err => logMessage(`Error updating library sources: ${err.message}`, 'text-rose-400'));
+    }
+
+    function refreshMetadata() {
+        const btn = document.getElementById('refresh-meta-btn');
+        const spinner = document.getElementById('meta-btn-spinner');
+        const label = document.getElementById('meta-btn-label');
+        const alertBox = document.getElementById('scan-status-alert');
+
+        btn.disabled = true;
+        spinner.classList.add('animate-spin');
+        label.textContent = 'Fetching Metadata...';
+        logMessage('Fetching online IMDb/TVMaze metadata for local and Google Drive libraries...', 'text-sky-400');
+
+        fetch('/api/admin/metadata/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ force: true })
+        })
+        .then(res => res.json())
+        .then(data => {
+            spinner.classList.remove('animate-spin');
+            label.textContent = 'Metadata Stored!';
+            logMessage(`Metadata saved locally (${data.cloud_metadata_count} cloud entries, ${data.local_updated} local folders updated).`, 'text-emerald-400');
+            alertBox.className = 'p-4 rounded-xl border text-sm transition-all bg-emerald-950/40 border-emerald-800 text-emerald-200 block';
+            alertBox.innerHTML = `✓ Metadata fetched &amp; stored locally for <strong>${data.cloud_metadata_count}</strong> Google Drive item(s). Refreshing...`;
+            setTimeout(() => window.location.reload(), 1000);
+        })
+        .catch(err => {
+            spinner.classList.remove('animate-spin');
+            label.textContent = 'Fetch & Store Metadata';
+            btn.disabled = false;
+            logMessage(`Metadata refresh error: ${err.message}`, 'text-rose-400');
+        });
     }
 
     function startFullScan() {

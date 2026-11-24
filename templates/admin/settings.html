@@ -52,6 +52,61 @@
         </div>
     </div>
 
+    <!-- Library Sources On/Off Switches -->
+    <div class="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl overflow-hidden">
+        <div class="p-5 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="p-1.5 rounded-lg bg-emerald-600/20 text-emerald-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-bold text-white">Library Sources</h3>
+            </div>
+            <span id="sources-sync-badge" class="text-xs text-slate-400 font-medium">Toggle active media catalogs</span>
+        </div>
+
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Local Library Switch -->
+            <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-4">
+                <div class="min-w-0">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm font-bold text-white">Local Library</span>
+                        <span id="local-source-pill" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase {% if library_sources.local_enabled %}bg-emerald-500/15 text-emerald-400 border border-emerald-500/30{% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
+                            {{ 'ON' if library_sources.local_enabled else 'OFF' }}
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1">Scan local <code class="text-indigo-300">movies/</code> and <code class="text-indigo-300">tv/</code> folders on disk.</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                    <input type="checkbox" id="local-library-switch" class="sr-only peer"
+                           {% if library_sources.local_enabled %}checked{% endif %}
+                           onchange="toggleLibrarySources()">
+                    <div class="w-11 h-6 bg-slate-800 border border-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 peer-checked:border-emerald-500"></div>
+                </label>
+            </div>
+
+            <!-- Cloud Library Switch -->
+            <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-4">
+                <div class="min-w-0">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm font-bold text-white">Cloud Library (Google Drive)</span>
+                        <span id="cloud-source-pill" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase {% if library_sources.cloud_enabled %}bg-sky-500/15 text-sky-300 border border-sky-500/30{% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
+                            {{ 'ON' if library_sources.cloud_enabled else 'OFF' }}
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1">Stream directly from configured Google Drive folders.</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                    <input type="checkbox" id="cloud-library-switch" class="sr-only peer"
+                           {% if library_sources.cloud_enabled %}checked{% endif %}
+                           onchange="toggleLibrarySources()">
+                    <div class="w-11 h-6 bg-slate-800 border border-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600 peer-checked:border-sky-500"></div>
+                </label>
+            </div>
+        </div>
+    </div>
+
     <!-- Media Library Path Settings -->
     <div class="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl overflow-hidden">
         <div class="p-5 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between">
@@ -94,6 +149,70 @@
         </div>
     </div>
 
+    <!-- Google Drive Direct Streaming Configuration -->
+    <div class="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl overflow-hidden">
+        <div class="p-5 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="p-1.5 rounded-lg bg-sky-600/20 text-sky-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-bold text-white">Google Drive Direct Streaming (Zero Download)</h3>
+            </div>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold {% if gdrive_config and gdrive_config.enabled and (gdrive_config.movies_folder or gdrive_config.tv_folder) %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
+                {% if gdrive_config and gdrive_config.enabled and (gdrive_config.movies_folder or gdrive_config.tv_folder) %}Configured{% else %}Optional{% endif %}
+            </span>
+        </div>
+
+        <form id="gdrive-settings-form" onsubmit="saveGdriveSettings(event)" class="p-6 space-y-4">
+            <p class="text-xs text-slate-400 leading-relaxed">
+                Paste shared Google Drive folder URLs or IDs ("Anyone with the link" viewer access) to stream Movies and TV shows directly over the network without downloading files to local disk.
+            </p>
+
+            <div class="grid grid-cols-1 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Google Drive Movies Folder URL or ID</label>
+                    <input type="text" id="gdrive-movies-folder"
+                           value="{{ gdrive_config.movies_folder if gdrive_config else '' }}"
+                           placeholder="https://drive.google.com/drive/folders/1AbCdEf... or Folder ID"
+                           class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl font-mono text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Google Drive TV Shows Folder URL or ID</label>
+                    <input type="text" id="gdrive-tv-folder"
+                           value="{{ gdrive_config.tv_folder if gdrive_config else '' }}"
+                           placeholder="https://drive.google.com/drive/folders/1XyZaBc... or Folder ID"
+                           class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl font-mono text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Google Drive API Key (Optional)</label>
+                    <input type="password" id="gdrive-api-key"
+                           value="{{ gdrive_config.api_key if gdrive_config else '' }}"
+                           placeholder="Leave blank for public shared folders, or paste API key for Drive API v3"
+                           class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl font-mono text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <p class="text-[11px] text-slate-500 mt-1">Optional: speeds up large folder listing and provides file sizes via Google Drive API v3.</p>
+                </div>
+            </div>
+
+            <div id="gdrive-status-banner" class="hidden p-3.5 rounded-xl border text-xs"></div>
+
+            <div class="pt-2 flex items-center justify-between">
+                <div class="text-xs text-slate-400">
+                    Indexed from Drive:
+                    <strong class="text-white">{{ gdrive_status.movies_count if gdrive_status else 0 }}</strong> movies,
+                    <strong class="text-white">{{ gdrive_status.tv_count if gdrive_status else 0 }}</strong> TV shows
+                </div>
+                <button type="submit" id="gdrive-save-btn"
+                        class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors shadow-lg shadow-indigo-600/30">
+                    Save & Scan Google Drive
+                </button>
+            </div>
+        </form>
+    </div>
+
     <!-- Server Runtime Details -->
     <div class="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl overflow-hidden">
         <div class="p-5 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between">
@@ -130,4 +249,95 @@
     </div>
 
 </div>
+
+<script>
+    function updateSourcePills(localOn, cloudOn) {
+        const localPill = document.getElementById('local-source-pill');
+        const cloudPill = document.getElementById('cloud-source-pill');
+        if (localPill) {
+            localPill.textContent = localOn ? 'ON' : 'OFF';
+            localPill.className = localOn
+                ? 'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                : 'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-800 text-slate-400 border border-slate-700';
+        }
+        if (cloudPill) {
+            cloudPill.textContent = cloudOn ? 'ON' : 'OFF';
+            cloudPill.className = cloudOn
+                ? 'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-sky-500/15 text-sky-300 border border-sky-500/30'
+                : 'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-800 text-slate-400 border border-slate-700';
+        }
+    }
+
+    function toggleLibrarySources() {
+        const localSwitch = document.getElementById('local-library-switch');
+        const cloudSwitch = document.getElementById('cloud-library-switch');
+        const badge = document.getElementById('sources-sync-badge');
+        const localOn = localSwitch ? localSwitch.checked : true;
+        const cloudOn = cloudSwitch ? cloudSwitch.checked : true;
+
+        updateSourcePills(localOn, cloudOn);
+        if (badge) badge.textContent = 'Updating library...';
+
+        fetch('/api/admin/library/sources', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                local_enabled: localOn,
+                cloud_enabled: cloudOn
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (badge) {
+                badge.textContent = `Active: ${data.movies_count} movies, ${data.tv_count} TV shows`;
+            }
+        })
+        .catch(err => {
+            if (badge) badge.textContent = 'Update failed: ' + err.message;
+        });
+    }
+
+    function saveGdriveSettings(e) {
+        e.preventDefault();
+        const btn = document.getElementById('gdrive-save-btn');
+        const banner = document.getElementById('gdrive-status-banner');
+        const cloudSwitch = document.getElementById('cloud-library-switch');
+        const origText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Saving & Scanning...';
+
+        const payload = {
+            enabled: cloudSwitch ? cloudSwitch.checked : true,
+            movies_folder: document.getElementById('gdrive-movies-folder').value.trim(),
+            tv_folder: document.getElementById('gdrive-tv-folder').value.trim(),
+            api_key: document.getElementById('gdrive-api-key').value.trim()
+        };
+
+        fetch('/api/admin/gdrive/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.textContent = origText;
+            const st = data.gdrive_status || {};
+            const errs = [st.movies_error, st.tv_error].filter(Boolean);
+            if (data.status === 'success' && errs.length === 0) {
+                banner.className = 'p-3.5 rounded-xl border text-xs bg-emerald-950/40 border-emerald-800 text-emerald-200 block';
+                banner.textContent = `Saved! Library updated: ${data.movies_count} total movies (${st.movies_count || 0} from Google Drive), ${data.tv_count} total TV shows (${st.tv_count || 0} from Google Drive).`;
+            } else {
+                banner.className = 'p-3.5 rounded-xl border text-xs bg-amber-950/40 border-amber-800 text-amber-200 block';
+                banner.textContent = errs.length ? `Saved with warnings: ${errs.join(' | ')}` : (data.message || 'Could not save settings.');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.textContent = origText;
+            banner.className = 'p-3.5 rounded-xl border text-xs bg-rose-950/40 border-rose-800 text-rose-200 block';
+            banner.textContent = 'Error saving Google Drive settings: ' + err.message;
+        });
+    }
+</script>
 {% endblock %}

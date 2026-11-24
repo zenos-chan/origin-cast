@@ -116,36 +116,6 @@
                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             </a>
 
-            <!-- Extensions (Scrapers) -->
-            <a href="{{ url_for('admin_extensions') }}" 
-               class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all {% if active_page == 'extensions' %}bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 font-semibold{% else %}text-slate-300 hover:text-white hover:bg-slate-800/70{% endif %}">
-                <div class="flex items-center space-x-3">
-                    <svg class="w-5 h-5 {% if active_page == 'extensions' %}text-white{% else %}text-slate-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/>
-                    </svg>
-                    <span>Extensions</span>
-                </div>
-                <span class="px-2 py-0.5 text-xs font-semibold rounded-md {% if active_page == 'extensions' %}bg-indigo-500/50 text-white{% else %}bg-slate-800 text-slate-300 border border-slate-700{% endif %}">
-                    {{ extensions_count|default(1) }}
-                </span>
-            </a>
-
-            <!-- Downloads Manager -->
-            <a href="{{ url_for('admin_downloads') }}" 
-               class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all {% if active_page == 'downloads' %}bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 font-semibold{% else %}text-slate-300 hover:text-white hover:bg-slate-800/70{% endif %}">
-                <div class="flex items-center space-x-3">
-                    <svg class="w-5 h-5 {% if active_page == 'downloads' %}text-white{% else %}text-slate-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                    </svg>
-                    <span>Downloads</span>
-                </div>
-                {% if active_downloads_count is defined and active_downloads_count > 0 %}
-                <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-emerald-500 text-white animate-pulse">
-                    {{ active_downloads_count }}
-                </span>
-                {% endif %}
-            </a>
-
             <!-- Settings -->
             <a href="{{ url_for('admin_settings') }}" 
                class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all {% if active_page == 'settings' %}bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 font-semibold{% else %}text-slate-300 hover:text-white hover:bg-slate-800/70{% endif %}">

@@ -58,8 +58,15 @@
                     </div>
 
                     <!-- Year Badge -->
-                    <div class="absolute top-3 left-3 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md border border-slate-700 text-slate-300 font-semibold text-xs shadow-lg">
-                        {{ movie.year or '2024' }}
+                    <div class="absolute top-3 left-3 flex items-center space-x-1.5">
+                        <span class="px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md border border-slate-700 text-slate-300 font-semibold text-xs shadow-lg">
+                            {{ movie.year or '2024' }}
+                        </span>
+                        {% if movie.source == 'gdrive' %}
+                        <span class="px-2 py-0.5 rounded-md bg-sky-600/90 backdrop-blur-md text-white font-bold text-[10px] uppercase shadow-lg">
+                            Drive
+                        </span>
+                        {% endif %}
                     </div>
 
                     <div class="absolute bottom-3 left-3 right-3">

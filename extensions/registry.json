@@ -1,8 +1,0 @@
-{
-  "hdhub4u": {
-    "id": "hdhub4u",
-    "name": "HDHub4u Movie Scraper",
-    "enabled": true,
-    "base_url": "https://new16.hdhub4u.cl"
-  }
-}

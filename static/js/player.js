@@ -194,17 +194,25 @@ window.OriginCastPlayer = {
         const art = new Artplayer(artOptions);
         this.art = art;
 
-        // Setup Player Top Bar Overlay
-        this.setupTopBar(art, opts);
-
-        // Setup Controls (Rewind, Fast Forward, Next Ep, Subtitles, Audio Track)
-        this.setupControls(art, opts);
-
-        // Setup Settings Menu (Subtitles settings, Audio Boost, Night Mode)
-        this.setupSettings(art, opts);
-
-        // Setup Events & Web Audio initialization on interaction
+        // Register playback, watch-history, and resilience listeners first
         this.setupEvents(art, opts);
+
+        // Setup UI overlays, controls, and settings safely
+        try {
+            this.setupTopBar(art, opts);
+        } catch (e) {
+            console.warn("[OriginCast] TopBar setup warning:", e);
+        }
+        try {
+            this.setupControls(art, opts);
+        } catch (e) {
+            console.warn("[OriginCast] Controls setup warning:", e);
+        }
+        try {
+            this.setupSettings(art, opts);
+        } catch (e) {
+            console.warn("[OriginCast] Settings setup warning:", e);
+        }
 
         // Setup Drag & Drop for Subtitles
         this.setupDragAndDrop(art);
@@ -383,7 +391,7 @@ window.OriginCastPlayer = {
         art.setting.add({
             name: 'load-custom-subtitle',
             html: '📂 Load Subtitle File (.srt, .vtt)',
-            click: function () {
+            onClick: function () {
                 const input = document.createElement('input');
                 input.type = 'file';
                 input.accept = '.srt,.vtt,.sub,.ass';
@@ -403,11 +411,11 @@ window.OriginCastPlayer = {
             }
         });
 
-        // Subtitle Sync / Delay
+        // Subtitle Sync / Delay Presets (distinct name so it does not collide with Artplayer's builtin 'subtitle-offset')
         art.setting.add({
-            name: 'subtitle-offset',
+            name: 'subtitle-sync-presets',
             width: 250,
-            html: 'Subtitle Sync / Delay',
+            html: 'Subtitle Sync Presets',
             tooltip: '0.0s',
             selector: [
                 { html: '-2.0s Delay', value: -2.0 },
@@ -490,7 +498,7 @@ window.OriginCastPlayer = {
         art.setting.add({
             name: 'load-external-audio',
             html: '🎵 Load External Audio File...',
-            click: function () {
+            onClick: function () {
                 const input = document.createElement('input');
                 input.type = 'file';
                 input.accept = 'audio/*';
@@ -522,6 +530,51 @@ window.OriginCastPlayer = {
 
     bufferGuardEnabled: true,
     bufferTargetSeconds: 6,
+    mediaInfo: null,
+    initialTime: 0,
+    lastWatchSyncAt: 0,
+
+    updateMediaInfo(patch) {
+        this.mediaInfo = Object.assign({}, this.mediaInfo || {}, patch || {});
+        this.initialTime = 0;
+        this.lastWatchSyncAt = 0;
+    },
+
+    reportWatchProgress(art, useBeacon = false) {
+        if (!this.mediaInfo || !this.mediaInfo.id || !art || !art.video) return;
+        const video = art.video;
+        const pos = Math.max(0, Math.floor(video.currentTime || 0));
+        const dur = (isFinite(video.duration) && video.duration > 0) ? Math.floor(video.duration) : 0;
+
+        const payload = JSON.stringify({
+            media_id: this.mediaInfo.id,
+            media_type: this.mediaInfo.type || 'movie',
+            title: this.mediaInfo.title || '',
+            poster: this.mediaInfo.poster || '',
+            backdrop: this.mediaInfo.backdrop || '',
+            year: this.mediaInfo.year || '',
+            position_seconds: pos,
+            duration_seconds: dur,
+            season: this.mediaInfo.season || null,
+            episode: this.mediaInfo.episode || null,
+            episode_title: this.mediaInfo.episodeTitle || ''
+        });
+
+        try {
+            if (useBeacon && navigator.sendBeacon) {
+                navigator.sendBeacon('/api/watch-history', new Blob([payload], { type: 'application/json' }));
+                return;
+            }
+            fetch('/api/watch-history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload,
+                keepalive: true
+            }).catch(() => {});
+        } catch (e) {
+            // Ignore transient network errors during watch-history sync
+        }
+    },
 
     formatTimestamp(seconds) {
         const s = Math.max(0, Math.floor(seconds || 0));
@@ -561,6 +614,9 @@ window.OriginCastPlayer = {
     setupEvents(art, opts) {
         const self = this;
         const video = art.video;
+        self.mediaInfo = opts.mediaInfo || null;
+        self.initialTime = Number(opts.initialTime || 0);
+        self.lastWatchSyncAt = 0;
         let lastKnownTime = 0;
         let lastSavedAt = 0;
         let lastRestoredSrc = '';
@@ -630,9 +686,23 @@ window.OriginCastPlayer = {
             }, delayMs);
         };
 
-        // Restore saved playback position when metadata loads for a stream
+        // Restore explicit ?t= resume time or saved playback position when metadata loads
         art.on('video:loadedmetadata', () => {
             const key = self.getResumeStorageKey(art);
+            if (self.initialTime > 0) {
+                const target = (isFinite(video.duration) && video.duration > 2)
+                    ? Math.min(self.initialTime, video.duration - 1)
+                    : self.initialTime;
+                self.initialTime = 0;
+                if (target > 0) {
+                    video.currentTime = target;
+                    lastKnownTime = target;
+                    lastRestoredSrc = key || '';
+                    art.notice.show = `Resumed at ${self.formatTimestamp(target)}`;
+                    updateBufferBadge();
+                    return;
+                }
+            }
             if (!key || key === lastRestoredSrc) {
                 updateBufferBadge();
                 return;
@@ -651,19 +721,25 @@ window.OriginCastPlayer = {
             updateBufferBadge();
         });
 
-        // Initialize Web Audio graph on first user interaction
-        art.on('play', () => {
+        // Initialize Web Audio graph and record watch history on video playback
+        art.on('video:play', () => {
             userPaused = false;
             guardPaused = false;
             window.OriginCastAudioEngine.init(art.video);
             window.OriginCastAudioEngine.resume();
+            self.reportWatchProgress(art);
         });
 
-        art.on('pause', () => {
+        art.on('video:pause', () => {
             if (!guardPaused) {
                 userPaused = true;
                 clearStallTimer();
+                self.reportWatchProgress(art);
             }
+        });
+
+        art.on('video:seeked', () => {
+            self.reportWatchProgress(art);
         });
 
         art.on('video:playing', () => {
@@ -706,8 +782,18 @@ window.OriginCastPlayer = {
                         }
                     }
                 }
+                if (now - self.lastWatchSyncAt >= 5000) {
+                    self.lastWatchSyncAt = now;
+                    self.reportWatchProgress(art);
+                }
             }
             updateBufferBadge();
+        });
+
+        window.addEventListener('pagehide', () => {
+            if (video && video.currentTime > 0) {
+                self.reportWatchProgress(art, true);
+            }
         });
 
         art.on('video:waiting', () => {

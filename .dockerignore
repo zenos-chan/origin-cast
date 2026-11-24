@@ -1,0 +1,32 @@
+.git/
+.gitignore
+.gemini/
+.DS_Store
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Host Python virtual environment
+bin/
+lib/
+include/
+pyvenv.cfg
+.venv/
+venv/
+env/
+
+# Local media and runtime state files
+movies/*
+!movies/.gitkeep
+tv/*
+!tv/.gitkeep
+*.db
+*.sqlite3
+*.log
+*.part
+.metadata_cache.json
+.cloud_metadata.json
+.gdrive_config.json
+.library_config.json
+.watch_history.json

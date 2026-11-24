@@ -4,14 +4,15 @@
 
 {% block styles %}
 <style>
-.art-video-player .art-mask {
-    backdrop-filter: blur(4px);
-}
 .art-video-player .art-bottom {
     background: linear-gradient(to top, rgba(2, 6, 23, 0.95), rgba(2, 6, 23, 0.6), transparent) !important;
 }
 .art-video-player {
-    border-radius: 1.5rem !important;
+    border-radius: 1.5rem 1.5rem 0 0 !important;
+}
+.art-video-player:hover .art-top-bar,
+.art-video-player.art-control-show .art-top-bar {
+    opacity: 1 !important;
 }
 </style>
 {% endblock %}
@@ -21,39 +22,47 @@
 
     <!-- Top Breadcrumb & Actions -->
     <div class="flex items-center justify-between text-xs text-slate-400">
-        <div class="flex items-center space-x-2">
+        <div class="flex items-center space-x-2 min-w-0">
             <a href="/" class="hover:text-white transition-colors">Home</a>
-            <span>/</span>
+            <span class="text-slate-600">/</span>
             <a href="/tv" class="hover:text-white transition-colors">TV Shows</a>
-            <span>/</span>
-            <span class="text-indigo-400 font-semibold">{{ show.title }}</span>
+            <span class="text-slate-600">/</span>
+            <span class="text-indigo-400 font-semibold truncate">{{ show.title }}</span>
         </div>
-        <a href="/" class="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        <a href="/" class="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-all flex-shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
             <span>Back to Library</span>
         </a>
     </div>
 
-    <!-- Cinema Video Player Stage -->
-    <div class="relative w-full rounded-3xl overflow-hidden bg-slate-950 border border-slate-800 shadow-2xl shadow-indigo-950/30">
+    <!-- Cinema Video Player Stage (no overflow-hidden here so dropdown menus float cleanly above lower sections) -->
+    <div class="relative z-30 w-full rounded-3xl bg-slate-950 border border-slate-800/90 ring-1 ring-white/5 shadow-2xl shadow-indigo-950/40">
         <!-- Player Container -->
-        <div id="artplayer-container" class="relative aspect-video w-full bg-black"></div>
+        <div class="rounded-t-3xl overflow-hidden bg-black">
+            <div id="artplayer-container" class="relative aspect-video w-full bg-black"></div>
+        </div>
 
         <!-- Cinema Underbar Info & Audio / Subtitle Actions -->
-        <div class="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div class="flex items-center space-x-4">
-                <div class="p-3 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
-                    <svg class="w-6 h-6 fill-current" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
+        <div class="relative z-40 rounded-b-3xl p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-slate-900/95 to-slate-950 border-t border-slate-800/80 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div class="flex items-center space-x-4 min-w-0">
+                <div class="p-3 rounded-2xl bg-indigo-600/15 text-indigo-400 border border-indigo-500/30 shadow-inner flex-shrink-0">
+                    <svg class="w-5 h-5 fill-current" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.555-.832l10 6.5a1 1 0 010 1.664l-10 6.5A1 1 0 014.5 16.5v-13z"/></svg>
                 </div>
-                <div>
-                    <div class="flex items-center space-x-2">
+                <div class="min-w-0">
+                    <div class="flex items-center flex-wrap gap-2">
                         <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">NOW PLAYING</span>
+                        {% if show.source == 'gdrive' %}
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">GOOGLE DRIVE</span>
+                        {% endif %}
                         <h1 id="now-playing-title" class="text-lg sm:text-xl font-black text-white tracking-tight truncate max-w-xl">
                             {{ current_episode.title if current_episode else show.title }}
                         </h1>
                     </div>
-                    <p class="text-xs text-slate-400 mt-1">
-                        {{ show.title }} • <span id="now-playing-sub" class="text-indigo-300 font-medium">Season {{ current_episode.season|default('1') }} Episode {{ current_episode.episode|default('1') }}</span> • 
+                    <p class="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span class="text-slate-300 font-medium">{{ show.title }}</span>
+                        <span class="text-slate-600">•</span>
+                        <span id="now-playing-sub" class="text-indigo-300 font-medium">Season {{ current_episode.season|default('1') }} Episode {{ current_episode.episode|default('1') }}</span>
+                        <span class="text-slate-600">•</span>
                         <span class="text-amber-400 font-bold">★ {{ show.rating or '8.5' }}</span>
                     </p>
                 </div>
@@ -62,58 +71,63 @@
             <!-- Quick Controls: Subtitles & Audio Boost -->
             <div class="flex flex-wrap items-center gap-2">
                 <!-- Subtitles Picker -->
-                <div class="relative inline-block text-left" id="quick-sub-dropdown">
-                    <button type="button" onclick="toggleSubMenu()" class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-colors">
-                        <span class="px-1 py-0.5 rounded bg-indigo-600/80 text-[10px] font-mono text-white">CC</span>
+                <div class="relative inline-block text-left z-50" id="quick-sub-dropdown">
+                    <button type="button" onclick="toggleSubMenu()" id="quick-sub-btn" class="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700/90 hover:border-indigo-500/50 transition-all shadow-sm">
+                        <span class="px-1.5 py-0.5 rounded bg-indigo-600/90 text-[10px] font-mono font-bold text-white">CC</span>
                         <span id="quick-sub-label">Subtitles ({{ subtitles|length }})</span>
-                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        <svg id="sub-chevron" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
-                    <div id="sub-menu-dropdown" class="hidden absolute right-0 mt-2 w-60 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1 z-30 text-xs divide-y divide-slate-800">
-                        <div class="py-1" id="sub-tracks-list">
-                            <button onclick="selectSubtitle(null, 'Off')" class="w-full text-left px-4 py-2 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center justify-between">
+                    <div id="sub-menu-dropdown" class="hidden absolute left-0 sm:left-auto sm:right-0 top-full mt-2.5 w-64 rounded-2xl bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl shadow-black/80 py-1.5 z-50 text-xs divide-y divide-slate-800">
+                        <div class="px-3.5 py-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                            <span>Subtitle Tracks</span>
+                            <span id="sub-count-hint" class="text-indigo-400 font-mono">{{ subtitles|length }} available</span>
+                        </div>
+                        <div class="py-1 max-h-56 overflow-y-auto" id="sub-tracks-list">
+                            <button type="button" onclick="selectSubtitle(null, 'Off')" class="w-full text-left px-3.5 py-2 text-slate-300 hover:bg-slate-800/90 hover:text-white flex items-center justify-between transition-colors">
                                 <span>Disabled (Off)</span>
+                                <span class="text-[10px] font-mono text-slate-500">NONE</span>
                             </button>
                             {% for sub in subtitles %}
-                            <button onclick="selectSubtitle('{{ sub.url }}', '{{ sub.name }}')" class="w-full text-left px-4 py-2 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center justify-between">
-                                <span class="truncate">{{ sub.name }}</span>
-                                <span class="text-[10px] uppercase font-mono text-indigo-400 ml-2">{{ sub.type }}</span>
+                            <button type="button" onclick="selectSubtitle('{{ sub.url }}', '{{ sub.name|replace('\'', '\\\'') }}')" class="w-full text-left px-3.5 py-2 text-slate-200 hover:bg-indigo-600/20 hover:text-white flex items-center justify-between transition-colors">
+                                <span class="truncate font-medium">{{ sub.name }}</span>
+                                <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/20 ml-2 flex-shrink-0">{{ sub.type }}</span>
                             </button>
                             {% endfor %}
                         </div>
-                        <div class="p-2 space-y-1.5">
-                            <label class="w-full flex items-center justify-center space-x-1.5 py-1.5 px-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[11px] cursor-pointer transition-colors shadow-sm">
+                        <div class="p-2.5 space-y-1.5">
+                            <label class="w-full flex items-center justify-center space-x-1.5 py-2 px-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[11px] cursor-pointer transition-colors shadow-md shadow-indigo-600/20">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                                 <span>Load .srt or .vtt file</span>
                                 <input type="file" accept=".srt,.vtt,.sub,.ass" class="hidden" onchange="handleSubtitleUpload(event)">
                             </label>
-                            <p class="text-[10px] text-slate-500 text-center">Drag & drop subtitles anytime</p>
+                            <p class="text-[10px] text-slate-500 text-center">Or drag &amp; drop subtitle onto player</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Audio Boost Selector -->
-                <div class="flex items-center space-x-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/80 text-xs">
+                <div class="flex items-center space-x-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700/80 text-xs">
                     <span class="text-[11px] text-slate-400 px-2 font-medium flex items-center">
                         <svg class="w-3.5 h-3.5 mr-1 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
                         Audio
                     </span>
-                    <button onclick="setAudioBoost(1.0, this)" class="boost-btn px-2 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 text-white transition-colors">100%</button>
-                    <button onclick="setAudioBoost(1.5, this)" class="boost-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-colors">150%</button>
-                    <button onclick="setAudioBoost(2.0, this)" class="boost-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-colors">200%</button>
+                    <button type="button" onclick="setAudioBoost(1.0, this)" class="boost-btn px-2 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 text-white transition-colors">100%</button>
+                    <button type="button" onclick="setAudioBoost(1.5, this)" class="boost-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-colors">150%</button>
+                    <button type="button" onclick="setAudioBoost(2.0, this)" class="boost-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-colors">200%</button>
                 </div>
 
                 <!-- Night Mode (Speech Clarity) -->
-                <button id="night-mode-btn" onclick="toggleNightMode()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors flex items-center space-x-1.5" title="Speech Clarity & Dynamic Compression">
+                <button type="button" id="night-mode-btn" onclick="toggleNightMode()" class="px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700/90 transition-colors flex items-center space-x-1.5" title="Speech Clarity & Dynamic Compression">
                     <span>🌙 Speech Clarity</span>
                 </button>
 
                 <!-- Next Episode Action -->
-                <button onclick="playNextEpisode()" class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition-colors flex items-center space-x-1.5" title="Play Next Episode (N)">
+                <button type="button" onclick="playNextEpisode()" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition-colors flex items-center space-x-1.5" title="Play Next Episode (N)">
                     <span>Next Ep &rarr;</span>
                 </button>
 
                 <!-- Shortcuts Help -->
-                <button onclick="window.OriginCastPlayer.showShortcutsModal()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition-colors text-xs font-mono" title="Keyboard Shortcuts (?)">
+                <button type="button" onclick="window.OriginCastPlayer.showShortcutsModal()" class="px-2.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/90 transition-colors text-xs font-mono font-bold" title="Keyboard Shortcuts (?)">
                     ?
                 </button>
             </div>
@@ -121,13 +135,13 @@
     </div>
 
     <!-- Interactive Episodes & Series Overview Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         <!-- Left: Interactive Season & Episode Picker (2 Columns) -->
         <div class="lg:col-span-2 space-y-6">
             
-            <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-5">
-                <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div class="p-6 rounded-2xl bg-slate-900/90 border border-slate-800/90 shadow-lg space-y-5">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800/80">
                     <h3 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
                         <span>📺 Episodes Library</span>
                     </h3>
@@ -138,10 +152,11 @@
                 {% if seasons %}
                 <div class="flex items-center space-x-2 overflow-x-auto pb-1" id="season-tabs">
                     {% for s_num in seasons.keys()|sort %}
+                    {% set is_active_season = (current_episode and (current_episode.season|string == s_num|string)) or (not current_episode and loop.first) %}
                     <button onclick="switchSeason('{{ s_num }}')" 
                             id="tab-season-{{ s_num }}"
-                            class="season-tab px-4 py-2 rounded-xl text-xs font-bold transition-all {% if loop.first %}bg-indigo-600 text-white shadow-lg shadow-indigo-600/30{% else %}bg-slate-950 text-slate-400 hover:text-white border border-slate-800{% endif %}">
-                        Season {{ s_num }}
+                            class="season-tab px-4 py-2 rounded-xl text-xs font-bold transition-all {% if is_active_season %}bg-indigo-600 text-white shadow-lg shadow-indigo-600/30{% else %}bg-slate-950 text-slate-400 hover:text-white border border-slate-800{% endif %}">
+                        Season {{ s_num }} <span class="opacity-70 ml-1">({{ seasons[s_num]|length }})</span>
                     </button>
                     {% endfor %}
                 </div>
@@ -149,11 +164,12 @@
                 <!-- Episodes List Container per Season -->
                 <div id="episodes-container" class="space-y-2.5">
                     {% for s_num, ep_list in seasons.items() %}
-                    <div id="season-panel-{{ s_num }}" class="season-panel space-y-2.5 {% if not loop.first %}hidden{% endif %}">
+                    {% set is_active_season = (current_episode and (current_episode.season|string == s_num|string)) or (not current_episode and loop.first) %}
+                    <div id="season-panel-{{ s_num }}" class="season-panel space-y-2.5 {% if not is_active_season %}hidden{% endif %}">
                         {% for ep in ep_list %}
                         <div onclick="playEpisode('{{ ep.file_path }}', '{{ ep.title|replace('\'', '\\\'') }}', '{{ ep.season }}', '{{ ep.episode }}')" 
                              id="ep-card-{{ ep.season }}-{{ ep.episode }}"
-                             class="ep-card group p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 hover:border-indigo-500/60 hover:bg-slate-900/60 transition-all cursor-pointer flex items-center justify-between gap-4 {% if current_episode and current_episode.file_path == ep.file_path %}border-indigo-500 bg-indigo-950/20{% endif %}">
+                             class="ep-card group p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 hover:border-indigo-500/60 hover:bg-slate-900/60 transition-all cursor-pointer flex items-center justify-between gap-4 {% if current_episode and current_episode.file_path == ep.file_path %}border-indigo-500 ring-1 ring-indigo-500/40 bg-indigo-950/25{% endif %}">
                             
                             <div class="flex items-center space-x-3 min-w-0">
                                 <div class="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center font-bold text-xs text-indigo-400 flex-shrink-0 group-hover:scale-105 transition-transform">
@@ -185,7 +201,7 @@
             </div>
 
             <!-- Series Overview & Synopsis -->
-            <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+            <div class="p-6 rounded-2xl bg-slate-900/90 border border-slate-800/90 shadow-lg space-y-3">
                 <h3 class="text-base font-bold text-white tracking-tight">Series Synopsis</h3>
                 <p class="text-sm text-slate-300 leading-relaxed">
                     {{ show.overview or 'Local media directory contains recorded television broadcast files.' }}
@@ -252,7 +268,7 @@
         document.write('<script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"><\/script>');
     }
 </script>
-<script src="{{ url_for('static', filename='js/player.js') }}"></script>
+<script src="{{ url_for('static', filename='js/player.js', v='3') }}"></script>
 <script>
     // Flattened episode list for seamless Next Episode progression
     const allEpisodes = [
@@ -262,7 +278,8 @@
                     season: {{ ep.season }},
                     episode: {{ ep.episode }},
                     title: {{ ep.title|tojson|safe }},
-                    file_path: {{ ep.file_path|tojson|safe }}
+                    file_path: {{ ep.file_path|tojson|safe }},
+                    stream_url: {{ (ep.stream_url or url_for('stream_video', filepath=ep.file_path))|tojson|safe }}
                 },
             {% endfor %}
         {% endfor %}
@@ -278,13 +295,25 @@
 
     const player = window.OriginCastPlayer.init({
         container: '#artplayer-container',
-        url: "{% if current_episode %}{{ url_for('stream_video', filepath=current_episode.file_path) }}{% else %}#{% endif %}",
+        url: "{% if current_episode %}{{ current_episode.stream_url or url_for('stream_video', filepath=current_episode.file_path) }}{% else %}#{% endif %}",
         poster: "{{ show.backdrop or show.poster or show.img }}",
         title: {{ show.title|tojson|safe }} + " - " + (allEpisodes[currentEpIdx] ? allEpisodes[currentEpIdx].title : "Episode 1"),
         subtitleText: "Season " + (allEpisodes[currentEpIdx] ? allEpisodes[currentEpIdx].season : "1") + " Episode " + (allEpisodes[currentEpIdx] ? allEpisodes[currentEpIdx].episode : "1"),
         subtitles: initialSubtitles,
         hasNextEpisode: allEpisodes.length > 1,
-        onNextEpisode: playNextEpisode
+        onNextEpisode: playNextEpisode,
+        initialTime: {{ resume_t if resume_t is not none else 0 }},
+        mediaInfo: {
+            id: {{ show.id|tojson|safe }},
+            type: 'tv',
+            title: {{ show.title|tojson|safe }},
+            poster: {{ (show.poster or show.img)|tojson|safe }},
+            backdrop: {{ (show.backdrop or show.poster or show.img)|tojson|safe }},
+            year: {{ (show.year or '')|tojson|safe }},
+            season: allEpisodes[currentEpIdx] ? allEpisodes[currentEpIdx].season : 1,
+            episode: allEpisodes[currentEpIdx] ? allEpisodes[currentEpIdx].episode : 1,
+            episodeTitle: allEpisodes[currentEpIdx] ? allEpisodes[currentEpIdx].title : 'Episode 1'
+        }
     });
 
     function playNextEpisode() {
@@ -300,7 +329,15 @@
         if (!player) return;
         currentEpIdx = allEpisodes.findIndex(e => e.file_path === filePath);
 
-        const streamUrl = `/stream/${filePath.split('/').map(encodeURIComponent).join('/')}`;
+        const epObj = allEpisodes.find(e => e.file_path === filePath);
+        const streamUrl = (epObj && epObj.stream_url)
+            ? epObj.stream_url
+            : `/stream/${filePath.split('/').map(encodeURIComponent).join('/')}`;
+        window.OriginCastPlayer.updateMediaInfo({
+            season: Number(seasonNum),
+            episode: Number(epNum),
+            episodeTitle: title
+        });
         player.switchUrl(streamUrl).then(() => {
             player.play();
         });
@@ -310,11 +347,11 @@
 
         // Update active highlight card
         document.querySelectorAll('.ep-card').forEach(card => {
-            card.classList.remove('border-indigo-500', 'bg-indigo-950/20');
+            card.classList.remove('border-indigo-500', 'ring-1', 'ring-indigo-500/40', 'bg-indigo-950/25');
         });
         const activeCard = document.getElementById(`ep-card-${seasonNum}-${epNum}`);
         if (activeCard) {
-            activeCard.classList.add('border-indigo-500', 'bg-indigo-950/20');
+            activeCard.classList.add('border-indigo-500', 'ring-1', 'ring-indigo-500/40', 'bg-indigo-950/25');
         }
 
         // Fetch dynamic subtitles for this episode
@@ -342,17 +379,22 @@
 
     function updateSubtitlesDropdown(subs) {
         const listContainer = document.getElementById('sub-tracks-list');
+        const countHint = document.getElementById('sub-count-hint');
+        if (countHint) countHint.textContent = `${subs.length} available`;
         if (!listContainer) return;
         let html = `
-            <button onclick="selectSubtitle(null, 'Off')" class="w-full text-left px-4 py-2 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center justify-between">
+            <button type="button" onclick="selectSubtitle(null, 'Off')" class="w-full text-left px-3.5 py-2 text-slate-300 hover:bg-slate-800/90 hover:text-white flex items-center justify-between transition-colors">
                 <span>Disabled (Off)</span>
+                <span class="text-[10px] font-mono text-slate-500">NONE</span>
             </button>
         `;
         subs.forEach(s => {
+            const safeUrl = (s.url || '').replace(/'/g, "\\'");
+            const safeName = (s.name || 'Subtitle').replace(/'/g, "\\'");
             html += `
-                <button onclick="selectSubtitle('${s.url}', '${s.name}')" class="w-full text-left px-4 py-2 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center justify-between">
-                    <span class="truncate">${s.name}</span>
-                    <span class="text-[10px] uppercase font-mono text-indigo-400 ml-2">${s.type}</span>
+                <button type="button" onclick="selectSubtitle('${safeUrl}', '${safeName}')" class="w-full text-left px-3.5 py-2 text-slate-200 hover:bg-indigo-600/20 hover:text-white flex items-center justify-between transition-colors">
+                    <span class="truncate font-medium">${s.name}</span>
+                    <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/20 ml-2 flex-shrink-0">${s.type}</span>
                 </button>
             `;
         });
@@ -362,14 +404,24 @@
 
     function toggleSubMenu() {
         const el = document.getElementById('sub-menu-dropdown');
-        if (el) el.classList.toggle('hidden');
+        const chev = document.getElementById('sub-chevron');
+        if (el) {
+            const isHidden = el.classList.toggle('hidden');
+            if (chev) chev.classList.toggle('rotate-180', !isHidden);
+        }
+    }
+
+    function closeSubMenu() {
+        const el = document.getElementById('sub-menu-dropdown');
+        const chev = document.getElementById('sub-chevron');
+        if (el) el.classList.add('hidden');
+        if (chev) chev.classList.remove('rotate-180');
     }
 
     window.addEventListener('click', (e) => {
         const dd = document.getElementById('quick-sub-dropdown');
-        const menu = document.getElementById('sub-menu-dropdown');
-        if (dd && menu && !dd.contains(e.target)) {
-            menu.classList.add('hidden');
+        if (dd && !dd.contains(e.target)) {
+            closeSubMenu();
         }
     });
 
@@ -385,7 +437,7 @@
             document.getElementById('quick-sub-label').textContent = `Subtitles (${name})`;
             player.notice.show = `Loaded Subtitle: ${name}`;
         }
-        toggleSubMenu();
+        closeSubMenu();
     }
 
     function handleSubtitleUpload(e) {
@@ -398,7 +450,7 @@
             player.subtitle.show = true;
             document.getElementById('quick-sub-label').textContent = `Subtitles (${file.name})`;
             player.notice.show = `Loaded Subtitle: ${file.name}`;
-            toggleSubMenu();
+            closeSubMenu();
         };
         reader.readAsText(file);
     }

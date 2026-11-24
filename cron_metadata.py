@@ -11,6 +11,7 @@ import json
 import argparse
 from pathlib import Path
 from metadata_fetcher import fetch_media_metadata
+from engine import Engine
 
 
 def process_directory(base_dir: Path, media_type: str, force: bool = False) -> int:
@@ -46,14 +47,26 @@ def process_directory(base_dir: Path, media_type: str, force: bool = False) -> i
 
 
 def run_sync(movies_dir: str = "movies", tv_dir: str = "tv", force: bool = False) -> None:
-    """Runs a single synchronization pass across movies and TV folders."""
+    """Runs a single synchronization pass across local folders and configured Google Drive folders."""
     m_path = Path(movies_dir)
     t_path = Path(tv_dir)
 
     print(f"\n--- [Cron Job] OriginCast Metadata Sync: {time.strftime('%Y-%m-%d %H:%M:%S')} ---")
     m_count = process_directory(m_path, "movie", force=force)
     t_count = process_directory(t_path, "tv", force=force)
-    print(f"--- Sync Complete: {m_count} movies updated, {t_count} TV shows updated ---\n")
+
+    eng = Engine(movies_dir=movies_dir, tv_dir=tv_dir, auto_fetch_online=True)
+    if eng.gdrive_config.get("enabled", True) and (
+        eng.gdrive_config.get("movies_folder") or eng.gdrive_config.get("tv_folder")
+    ):
+        print("[*] Syncing Google Drive metadata to local cloud metadata store...")
+        eng.refresh_cloud_metadata(force=force)
+        print(
+            f"    [+] Cloud store updated: {len(eng.cloud_metadata.get('movies', {}))} movies, "
+            f"{len(eng.cloud_metadata.get('tv', {}))} TV shows -> {eng.cloud_metadata_file}"
+        )
+
+    print(f"--- Sync Complete: {m_count} local movies updated, {t_count} local TV shows updated ---\n")
 
 
 def main():

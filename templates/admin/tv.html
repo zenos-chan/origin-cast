@@ -57,6 +57,11 @@
                                 <span class="px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                                     ★ {{ show.rating or '8.5' }}
                                 </span>
+                                {% if show.source == 'gdrive' %}
+                                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                    Google Drive
+                                </span>
+                                {% endif %}
                             </div>
                             <p class="text-xs text-slate-400 mt-1">
                                 {{ show.year or '2024' }} • 
